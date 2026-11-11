@@ -28,6 +28,8 @@ const state = {
 	ids: new Set(),
 	// 刚删掉的会话：宿主侧边栏还留着旧渲染，页面会话内继续藏住
 	gone: new Set(),
+	deleted: [],
+	deletedCollapsed: true,
 	defaultDays: 7,
 	showActiveRowButton: false,
 	autoDeleteOnExpiry: false,
@@ -106,10 +108,11 @@ async function request(pathname, init) {
 	return body ?? {};
 }
 
-function applyRecords(records) {
+function applyRecords(records, deleted) {
 	state.records = Array.isArray(records) ? records : [];
-	state.paths = new Set(state.records.map((r) => normPath(r.path)));
-	state.ids = new Set(state.records.map((r) => sessionIdOf(r.path)).filter(Boolean));
+	if (Array.isArray(deleted)) state.deleted = deleted;
+	state.paths = new Set([...state.records, ...state.deleted].map((r) => normPath(r.path)));
+	state.ids = new Set([...state.records, ...state.deleted].map((r) => sessionIdOf(r.path)).filter(Boolean));
 	if (panelEl) renderPanel();
 }
 
@@ -121,7 +124,8 @@ async function refresh() {
 			: 7;
 		state.showActiveRowButton = data?.settings?.showActiveRowButton === true;
 		state.autoDeleteOnExpiry = data?.settings?.autoDeleteOnExpiry === true;
-		applyRecords(data?.records);
+		state.deleted = Array.isArray(data?.deleted) ? data.deleted : [];
+		applyRecords(data?.records, data?.deleted);
 		scan();
 	} catch (err) {
 		console.warn("[session-archive] 读取归档状态失败：", err);
@@ -200,6 +204,9 @@ function ensureStyles() {
 .sa-dialog-btn.primary:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 18%,transparent)}
 .sa-dialog-btn.danger{border-color:color-mix(in srgb,var(--red,#ff6b6b) 55%,transparent);color:var(--red,#ff6b6b)}
 .sa-dialog-btn.danger:hover{background:color-mix(in srgb,var(--red,#ff6b6b) 20%,transparent)}
+.sa-deleted-group{margin-top:8px;border-top:1px dashed var(--border,#3a3d45)}
+.sa-item-deleted{opacity:.6}
+.sa-item-deleted .sa-item-title{text-decoration:line-through}
 .sa-empty{padding:18px 10px;text-align:center;opacity:.6}
 @keyframes saFlash{0%,100%{box-shadow:none;background:transparent}50%{box-shadow:0 0 0 2px var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 18%,transparent)}}
 .lp-row.sa-flash{animation:saFlash .9s ease-in-out 3;border-radius:8px}
@@ -447,6 +454,39 @@ function renderPanel() {
 		}
 		list.appendChild(group);
 	}
+	if (state.deleted.length > 0) list.appendChild(renderDeletedSection());
+}
+
+/** 已删除（文件已不在）的记录：只能看，不能恢复。 */
+function renderDeletedSection() {
+	const wrap = document.createElement("div");
+	wrap.className = "sa-group sa-deleted-group";
+	const head = document.createElement("div");
+	head.className = "sa-group-h";
+	const open = !state.deletedCollapsed;
+	head.dataset.open = open ? "1" : "0";
+	head.title = "最近删除的归档会话（文件已不存在）";
+	head.innerHTML = `<span class="sa-caret">▾</span><span class="sa-group-name">最近删除</span><span class="sa-group-count">${state.deleted.length} 条</span>`;
+	head.addEventListener("click", () => {
+		state.deletedCollapsed = !state.deletedCollapsed;
+		renderPanel();
+	});
+	wrap.appendChild(head);
+	if (open) {
+		for (const record of state.deleted) {
+			const item = document.createElement("div");
+			item.className = "sa-item sa-item-deleted";
+			item.dataset.saUi = "1";
+			const at = record.deletedAt ? new Date(record.deletedAt).toLocaleString() : "";
+			item.innerHTML = `
+				<div class="sa-item-head">
+					<span class="sa-item-title" title="${escapeAttr(record.path)}">${escapeHtml(cleanRowLabel(record.title) || "(未命名对话)")}</span>
+				</div>
+				<div class="sa-item-meta">已删除${at ? `（${escapeHtml(at)}）` : ""}</div>`;
+			wrap.appendChild(item);
+		}
+	}
+	return wrap;
 }
 
 function renderPanelItem(record) {
@@ -915,7 +955,7 @@ function init() {
 		if (event?.detail?.pluginId !== PLUGIN_ID) return;
 		const payload = event.detail.payload;
 		if (payload?.type === "state") {
-			applyRecords(payload.records);
+			applyRecords(payload.records, payload.deleted);
 			scan();
 		} else if (payload?.type === "purged" && Array.isArray(payload.paths)) {
 			for (const path of payload.paths) {

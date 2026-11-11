@@ -530,3 +530,39 @@ describe("/state 的 settings", () => {
 		});
 	});
 });
+
+describe("最近删除与启动汇总", () => {
+	it("/state 返回 deleted 列表；启动时对上次运行期间删掉的条目汇总一次通知", async () => {
+		await withSandbox(async (sb) => {
+			const file = sb.makeSession("2026-02-02_del.jsonl");
+			const dataDir = sb.dataDir("deleted-state");
+
+			const host = createHost(dataDir);
+			sb.activate(host);
+			const archived = await call(host, "POST /archive", { path: file, title: "将被删除", days: 7 });
+			assert.equal(archived.status, 200);
+			const purged = await call(host, "POST /purge", { id: archived.body.record.id });
+			assert.equal(purged.status, 200);
+
+			const state = await call(host, "GET /state");
+			assert.ok(Array.isArray(state.body.deleted));
+			assert.equal(state.body.deleted.length, 1);
+			assert.equal(state.body.deleted[0].title, "将被删除");
+			assert.equal(typeof state.body.deleted[0].deletedAt, "string");
+
+			// 重新激活：为「上次运行期间删除」补一条通知
+			const notes = [];
+			const host2 = createHost(dataDir);
+			host2.notify = (_level, text) => notes.push(text);
+			sb.activate(host2);
+			assert.ok(notes.some((text) => /归档到期删除了 1 条/.test(text)), "启动应补一条汇总通知");
+
+			// 再启动一次不应重复提示
+			const notes2 = [];
+			const host3 = createHost(dataDir);
+			host3.notify = (_level, text) => notes2.push(text);
+			sb.activate(host3);
+			assert.equal(notes2.filter((text) => /归档到期删除了/.test(text)).length, 0, "第二次启动不该重复提示");
+		});
+	});
+});

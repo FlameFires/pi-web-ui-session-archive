@@ -70,7 +70,7 @@ export function normalizeDays(value, fallback = DEFAULT_DAYS) {
 }
 
 export function emptyState() {
-	return { version: 1, records: [] };
+	return { version: 1, records: [], lastSeenDeletedAt: null };
 }
 
 export function loadState(file) {
@@ -79,7 +79,12 @@ export function loadState(file) {
 		const parsed = JSON.parse(readFileSync(file, "utf8"));
 		if (!parsed || !Array.isArray(parsed.records)) return emptyState();
 		const valid = parsed.records.filter((r) => r && typeof r.path === "string" && r.path);
-		return { version: 1, records: dedupeRecords(valid).slice(0, MAX_RECORDS) };
+		return {
+			version: 1,
+			records: dedupeRecords(valid).slice(0, MAX_RECORDS),
+			// 根级字段要保留：丢了它会让「启动汇总通知」每次重启都重复弹一遍
+			lastSeenDeletedAt: typeof parsed.lastSeenDeletedAt === "string" ? parsed.lastSeenDeletedAt : null,
+		};
 	} catch {
 		return emptyState();
 	}
@@ -276,6 +281,21 @@ export function extractUserText(message) {
 	return text.replace(/\s+/g, " ").trim();
 }
 
+/** 最近删除的记录（文件已不在），给面板的「最近删除」区用。 */
+export function deletedRecords(state, limit = 20) {
+	return state.records
+		.filter((r) => r.status === "deleted")
+		.sort((a, b) => (Date.parse(b.deletedAt ?? "") || 0) - (Date.parse(a.deletedAt ?? "") || 0))
+		.slice(0, limit)
+		.map((r) => ({
+			id: r.id,
+			title: r.title,
+			path: r.path,
+			deletedAt: r.deletedAt ?? null,
+			days: r.days,
+		}));
+}
+
 function sendJson(res, status, payload) {
 	try {
 		res.status(status).json(payload);
@@ -324,7 +344,12 @@ export default {
 
 		const publish = () => {
 			try {
-				host.broadcast?.({ type: "state", records: publicRecords(state), settings: settings() });
+				host.broadcast?.({
+					type: "state",
+					records: publicRecords(state),
+					deleted: deletedRecords(state),
+					settings: settings(),
+				});
 			} catch {
 				/* 广播失败不影响状态 */
 			}
@@ -483,7 +508,12 @@ export default {
 				}
 			}
 			if (healed) persist();
-			sendJson(res, 200, { ok: true, records: publicRecords(state), settings: settings() });
+			sendJson(res, 200, {
+				ok: true,
+				records: publicRecords(state),
+				deleted: deletedRecords(state),
+				settings: settings(),
+			});
 		});
 
 		host.route("POST", "/archive", async (req, res) => {
@@ -573,6 +603,25 @@ export default {
 			}, STARTUP_SWEEP_DELAY_MS);
 			timer.unref?.();
 			host.effect("startup-sweep", () => clearTimeout(timer));
+		}
+
+		// 无人值守时的到期删除没人看得到通知：下次启动补一条汇总
+		try {
+			const since = Date.parse(state.lastSeenDeletedAt ?? "") || 0;
+			const pending = state.records.filter(
+				(r) => r.status === "deleted" && (Date.parse(r.deletedAt ?? "") || 0) > since,
+			);
+			if (pending.length > 0) {
+				const names = pending
+					.slice(0, 3)
+					.map((r) => r.title || r.path)
+					.join("、");
+				host.notify?.("info", `🗄️ 上次运行期间，归档到期删除了 ${pending.length} 条会话：${names}${pending.length > 3 ? "…" : ""}`);
+			}
+			state.lastSeenDeletedAt = new Date().toISOString();
+			persist();
+		} catch (err) {
+			host.log("warn", "归档启动汇总失败", err);
 		}
 
 		host.log("info", `会话归档已就绪：${state.records.length} 条记录（${statePath}）`);
