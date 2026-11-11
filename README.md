@@ -83,4 +83,4 @@ node --test "test/*.test.mjs"     # 40 个用例
 
 ## 许可证
 
-MIT。仅使用宿主公开插件 API 与 Node 内置模块，无三方依赖。
+[MIT](LICENSE)。运行时仅使用宿主公开插件 API 与 Node 内置模块，无三方运行时依赖；`jsdom` 只用于本地 DOM 测试（`devDependencies`）。
