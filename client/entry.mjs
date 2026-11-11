@@ -533,9 +533,19 @@ function findProjectHeaderRow(folder) {
 	return null;
 }
 
-/** 项目行是否处于展开态：宿主用 `.lp-project-head-row.is-expanded` 表示。 */
+/** 项目行是否处于展开态：宿主用 `.lp-project-head-row` 的 `is-expanded` / `is-collapsed` 表示。 */
 function projectRowExpanded(row) {
-	return row?.classList?.contains("is-expanded") !== false;
+	if (!row?.classList) return true;
+	if (row.classList.contains("is-collapsed")) return false;
+	return row.classList.contains("is-expanded") || !row.classList.contains("lp-project-head-row");
+}
+
+/**
+ * 折叠开关必须点**箭头**：宿主里点项目标题按钮是「切换项目（set_cwd）」，
+ * 点 `.lp-project-chevron` 才是 toggleProjectExpand —— 点错会把用户工作区拽到别处。
+ */
+function projectToggleTarget(row) {
+	return row?.querySelector(".lp-project-chevron") ?? row?.querySelector(".lp-project-header-item") ?? row;
 }
 
 /** 等下一帧（无布局环境没有 rAF，退回 setTimeout）。 */
@@ -555,8 +565,7 @@ async function nextFrames(count = 2) {
 async function expandProjectForFolder(folder) {
 	const row = findProjectHeaderRow(folder);
 	if (!row || projectRowExpanded(row)) return false;
-	const toggle = row.querySelector(".lp-project-header-item, button, [role='button']") ?? row;
-	toggle.click();
+	projectToggleTarget(row).click();
 	await nextFrames(2);
 	return true;
 }
@@ -570,7 +579,7 @@ async function ensureRowVisible(row) {
 		while (node && node !== document.body) {
 			const collapsedProject =
 				node.classList?.contains("lp-project-head-row") && !projectRowExpanded(node)
-					? (node.querySelector(".lp-project-header-item") ?? node)
+					? projectToggleTarget(node)
 					: null;
 			const collapsedAria =
 				node.getAttribute("aria-expanded") === "false"

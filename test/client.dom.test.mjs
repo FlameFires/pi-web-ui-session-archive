@@ -602,8 +602,18 @@ describe("恢复：折叠项目", () => {
 		// 展开前的“宿主”行为：点击项目头 → 渲染出该项目的会话行
 		const headRow = env.document.querySelector(".lp-project-head-row");
 		const headerBtn = headRow.querySelector(".lp-project-header-item");
+		const chevron = headRow.querySelector(".lp-project-chevron");
 		let expanded = false;
+		let switchedProject = false;
+		// 宿主语义：点标题 = 切换项目（set_cwd），点箭头 = 折叠/展开。恢复流程只许点箭头。
 		headerBtn.addEventListener("click", () => {
+			switchedProject = true;
+		});
+		chevron.addEventListener("click", (event) => {
+			event.stopPropagation();
+			expandForTest();
+		});
+		const expandForTest = () => {
 			if (expanded) return;
 			expanded = true;
 			headRow.classList.add("is-expanded");
@@ -613,7 +623,7 @@ describe("恢复：折叠项目", () => {
 			// jsdom 没有布局：让「可见性」检查通过
 			row.getClientRects = () => [{ width: 100, height: 20 }];
 			headRow.after(row);
-		});
+		};
 
 		await settle();
 		await openPanelFromSlot(env);
@@ -625,6 +635,7 @@ describe("恢复：折叠项目", () => {
 		await settle();
 
 		assert.equal(expanded, true, "恢复后应自动展开对应项目");
+		assert.equal(switchedProject, false, "展开只能点箭头，不能点标题（那样会切换项目）");
 		const flashed = env.document.querySelector(".lp-row.sa-flash");
 		assert.ok(flashed, "恢复的那一行应带闪烁标记");
 	});
