@@ -2,7 +2,7 @@
 	"id": "session-archive",
 	"name": "会话归档",
 	"nameEn": "Session Archive",
-	"version": "0.1.2",
+	"version": "0.2.0",
 	"apiVersion": 2,
 	"icon": "🗄️",
 	"iconSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"4\" rx=\"1\"/><path d=\"M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8\"/><path d=\"M9.5 12.5h5\"/></svg>",
@@ -22,10 +22,10 @@
 			"type": "number",
 			"label": "默认保留天数",
 			"labelEn": "Default retention (days)",
-			"default": 7,
+			"default": 30,
 			"min": 0,
 			"max": 365,
-			"hint": "归档弹窗默认选中的天数；0 表示默认“永不删除”。"
+			"hint": "归档时直接使用的天数（点 🗄 立即归档，不再弹窗）；0 表示永不到期。"
 		},
 		{
 			"key": "showActiveRowButton",

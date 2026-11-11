@@ -38,7 +38,6 @@ const state = {
 let observer = null;
 let scanTimer = null;
 let pollTimer = null;
-let dialogEl = null;
 let panelEl = null;
 let toastEl = null;
 let started = false;
@@ -148,17 +147,32 @@ function ensureStyles() {
 .sa-btn.primary{background:var(--accent,#5b8cff);border-color:var(--accent,#5b8cff);color:var(--accent-contrast,#fff)}
 .sa-btn.danger{color:#ff8080;border-color:#ff808055}
 .sa-btn:disabled{opacity:.5;cursor:not-allowed}
-.sa-panel{position:fixed;right:16px;top:64px;bottom:16px;width:min(460px,calc(100vw - 32px));background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:14px;box-shadow:0 18px 48px rgba(0,0,0,.45);z-index:9400;display:flex;flex-direction:column;font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
-.sa-panel header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border,#3a3d45)}
-.sa-panel header h3{margin:0;font-size:14px;font-weight:600;flex:1}
-.sa-panel .sa-count{opacity:.6;font-size:12px}
-.sa-list{flex:1;overflow:auto;padding:8px}
-.sa-item{border:1px solid var(--border,#3a3d45);border-radius:10px;padding:10px;margin-bottom:8px}
-.sa-item-title{font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sa-item-meta{opacity:.65;font-size:11.5px;word-break:break-all}
-.sa-item-row{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
-.sa-item-row select{background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:6px;padding:3px 6px;font-size:12px}
-.sa-empty{padding:24px 12px;text-align:center;opacity:.6}
+.sa-panel{position:fixed;right:12px;top:56px;width:320px;max-height:min(560px,calc(100vh - 80px));background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.45);z-index:9400;display:flex;flex-direction:column;font:12.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+.sa-panel header{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border,#3a3d45)}
+.sa-panel header h3{margin:0;font-size:13px;font-weight:600;flex:0 0 auto}
+.sa-search{flex:1;min-width:0;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:6px;padding:3px 8px;font-size:12px;outline:none}
+.sa-search:focus{border-color:var(--accent,#5b8cff)}
+.sa-panel .sa-count{opacity:.55;font-size:11px;flex:0 0 auto}
+.sa-list{flex:1;overflow:auto;padding:4px 6px 8px}
+.sa-group{margin-top:6px}
+.sa-group+.sa-group{border-top:1px solid var(--border,#3a3d45)}
+.sa-group-h{display:flex;align-items:center;gap:6px;padding:6px 4px 2px;opacity:.7;font-size:11px;font-weight:600}
+.sa-group-h span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-item{border-radius:8px;padding:6px 6px 6px 8px;margin:2px 0}
+.sa-item:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 8%,transparent)}
+.sa-item-title{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-item-meta{opacity:.6;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-item-meta.err{color:#ff8080;opacity:1}
+.sa-item-row{display:flex;align-items:center;gap:4px;margin-top:4px}
+.sa-item-row select{background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:5px;padding:1px 4px;font-size:11px;max-width:96px}
+.sa-mini{border:1px solid var(--border,#3a3d45);background:transparent;color:inherit;border-radius:5px;padding:2px 8px;cursor:pointer;font-size:11px;white-space:nowrap}
+.sa-mini:hover{border-color:var(--accent,#5b8cff);color:var(--accent,#5b8cff)}
+.sa-mini.danger{color:#ff8080;border-color:#ff808055}
+.sa-mini.danger:hover{border-color:#ff8080}
+.sa-mini:disabled{opacity:.45;cursor:not-allowed}
+.sa-empty{padding:18px 10px;text-align:center;opacity:.6}
+@keyframes saFlash{0%,100%{box-shadow:none;background:transparent}50%{box-shadow:0 0 0 2px var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 18%,transparent)}}
+.lp-row.sa-flash{animation:saFlash .9s ease-in-out 3;border-radius:8px}
 .sa-toast{position:fixed;right:16px;bottom:16px;z-index:9600;background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.45);padding:10px 12px;display:flex;align-items:center;gap:10px;font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:min(420px,calc(100vw - 32px))}
 .sa-toast button{border:0;background:transparent;color:var(--accent,#5b8cff);cursor:pointer;font-size:13px}
 .sa-close{border:0;background:transparent;color:inherit;cursor:pointer;opacity:.7;font-size:16px;line-height:1}
@@ -207,7 +221,7 @@ function makeArchiveButton(row, path) {
 	btn.addEventListener("click", (event) => {
 		event.preventDefault();
 		event.stopPropagation();
-		openArchiveDialog(path, rowLabel(row));
+		void archiveNow(path, rowLabel(row));
 	});
 	return btn;
 }
@@ -224,6 +238,23 @@ function rowIsArchived(row, path) {
 	if (state.paths.has(key)) return true;
 	if (state.ids.has(key)) return true;
 	return false;
+}
+
+async function archiveNow(path, title) {
+	const days = Number.isFinite(state.defaultDays) ? state.defaultDays : 30;
+	try {
+		const result = await request("/archive", {
+			method: "POST",
+			body: JSON.stringify({ path, title, days }),
+		});
+		if (Array.isArray(result.records)) applyRecords(result.records);
+		else await refresh();
+		scan();
+		const label = days > 0 ? `${days} 天后提醒清理` : "永不到期";
+		toast(`已归档「${title || path}」· ${label}`, result.record?.id);
+	} catch (err) {
+		toast(`归档失败：${err instanceof Error ? err.message : String(err)}`);
+	}
 }
 
 function scan() {
@@ -261,89 +292,6 @@ function scheduleScan() {
 
 /* ---------------------------------------------------------------- 对话框 */
 
-function closeArchiveDialog() {
-	dialogEl?.remove();
-	dialogEl = null;
-}
-
-function openArchiveDialog(path, title) {
-	closeArchiveDialog();
-	ensureStyles();
-	let days = Number.isFinite(state.defaultDays) ? state.defaultDays : 7;
-	if (!RETENTION_OPTIONS.some((o) => o.days === days)) days = 7;
-
-	const backdrop = document.createElement("div");
-	backdrop.className = "sa-backdrop";
-	backdrop.dataset.saUi = "1";
-	const card = document.createElement("div");
-	card.className = "sa-card";
-	card.innerHTML = `
-		<h3>归档这个对话？</h3>
-		<div class="sa-sub">${escapeHtml(title || path)}</div>
-		<div class="sa-options"></div>
-		<div class="sa-actions">
-			<button type="button" class="sa-btn" data-act="cancel">取消</button>
-			<button type="button" class="sa-btn primary" data-act="ok">归档</button>
-		</div>`;
-	const optionsWrap = card.querySelector(".sa-options");
-	const buttons = [];
-	const renderOptions = () => {
-		optionsWrap.innerHTML = "";
-		for (const option of RETENTION_OPTIONS) {
-			const b = document.createElement("button");
-			b.type = "button";
-			b.className = "sa-opt";
-			b.dataset.active = option.days === days ? "1" : "0";
-			b.textContent = option.label;
-			b.addEventListener("click", () => {
-				days = option.days;
-				renderOptions();
-			});
-			optionsWrap.appendChild(b);
-			buttons.push(b);
-		}
-	};
-	renderOptions();
-
-	card.addEventListener("click", async (event) => {
-		const act = event.target?.closest?.("button")?.dataset?.act;
-		if (!act) return;
-		if (act === "cancel") {
-			closeArchiveDialog();
-			return;
-		}
-		const ok = card.querySelector('[data-act="ok"]');
-		ok.disabled = true;
-		ok.textContent = "归档中…";
-		try {
-			const result = await request("/archive", {
-				method: "POST",
-				body: JSON.stringify({ path, title, days }),
-			});
-			closeArchiveDialog();
-			if (Array.isArray(result.records)) applyRecords(result.records);
-			else await refresh();
-			scan();
-			toast(
-				days > 0 ? `已归档「${title || path}」，${days} 天后自动删除` : `已归档「${title || path}」，不会自动删除`,
-				result.record?.id,
-			);
-		} catch (err) {
-			ok.disabled = false;
-			ok.textContent = "归档";
-			toast(`归档失败：${err instanceof Error ? err.message : String(err)}`);
-		}
-	});
-
-	backdrop.addEventListener("click", (event) => {
-		if (event.target === backdrop) closeArchiveDialog();
-	});
-	backdrop.appendChild(card);
-	document.body.appendChild(backdrop);
-	dialogEl = backdrop;
-	card.querySelector('[data-act="ok"]')?.focus();
-}
-
 /* ---------------------------------------------------------------- 管理面板 */
 
 function closePanel() {
@@ -352,79 +300,146 @@ function closePanel() {
 	state.panelOpen = false;
 }
 
+/** 从会话路径提取项目文件夹（sessions/<编码后的 cwd>/<file>.jsonl）。 */
+function projectFolderOf(path) {
+	const match = String(path ?? "").match(/\/sessions\/([^/]+)\//i);
+	return match ? match[1] : "";
+}
+
+/** 用侧边栏 DOM 里能看到的绝对路径 title 反推编码文件夹的真实项目路径；推不出就回退文件夹名。 */
+function projectLabel(folder) {
+	if (!folder) return "(未知项目)";
+	const strip = (v) => String(v ?? "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+	const target = strip(folder);
+	for (const el of document.querySelectorAll("[title]")) {
+		const t = el.getAttribute("title") ?? "";
+		if (!/^[A-Za-z]:[\\/]/.test(t)) continue;
+		if (strip(t) === target) return t.replace(/\\/g, "/");
+	}
+	const plain = folder.replace(/^-+|-+$/g, "");
+	const drive = plain.match(/^([A-Za-z])--(.*)$/);
+	return drive ? `${drive[1]}:\\${drive[2].replace(/--/g, "\\")}` : plain;
+}
+
 function renderPanel() {
 	if (!panelEl) return;
 	const list = panelEl.querySelector(".sa-list");
 	const count = panelEl.querySelector(".sa-count");
 	if (!list) return;
-	if (count) count.textContent = `${state.records.length} 条`;
+	const query = (panelEl.querySelector(".sa-search")?.value ?? "").trim().toLowerCase();
+	const records = state.records.filter((r) =>
+		!query ||
+		String(r.title ?? "").toLowerCase().includes(query) ||
+		String(r.path ?? "").toLowerCase().includes(query),
+	);
+	if (count) count.textContent = query ? `${records.length}/${state.records.length}` : `${state.records.length}`;
 	list.innerHTML = "";
-	if (state.records.length === 0) {
-		list.innerHTML = `<div class="sa-empty">还没有归档的对话。<br/>在左栏任意会话行上点 🗄 图标即可归档。</div>`;
+	if (records.length === 0) {
+		list.innerHTML = `<div class="sa-empty">${query ? "没有匹配的归档" : "还没有归档的对话。\n左栏会话行 hover 点 🗄 即可归档。"}</div>`;
 		return;
 	}
-	for (const record of state.records) {
-		const item = document.createElement("div");
-		item.className = "sa-item";
-		item.dataset.saUi = "1";
-		item.innerHTML = `
-			<div class="sa-item-title" title="${escapeAttr(record.title || record.path)}">${escapeHtml(record.title || "(未命名对话)")}</div>
-			<div class="sa-item-meta">${escapeHtml(formatDay(record.expiresAt, record.status))}</div>
-			<div class="sa-item-meta" title="${escapeAttr(record.path)}">${escapeHtml(shortPath(record.path))}</div>
-			${record.lastError ? `<div class="sa-item-meta" style="color:#ff8080">${escapeHtml(record.lastError)}</div>` : ""}
-			<div class="sa-item-row">
-				<select data-role="retention">
-					${RETENTION_OPTIONS.map(
-						(o) =>
-							`<option value="${o.days}"${Number(record.days) === o.days ? " selected" : ""}>${o.label}</option>`,
-					).join("")}
-				</select>
-				<button type="button" class="sa-btn" data-role="restore">恢复</button>
-				<button type="button" class="sa-btn danger" data-role="purge">删除文件</button>
-			</div>`;
-		item.querySelectorAll("button").forEach((button) => {
-			button.addEventListener("click", async () => {
-				const role = button.dataset.role;
-				button.disabled = true;
-				try {
-					if (role === "restore") {
-						const result = await request("/restore", {
-							method: "POST",
-							body: JSON.stringify({ id: record.id }),
-						});
-						applyRecords(result.records);
-						scan();
-						toast(`已恢复「${record.title || record.path}」，侧边栏刷新后可见`);
-					} else if (role === "purge") {
-						if (!window.confirm(`真的删除这个会话文件？不可恢复。\n\n${record.path}\n\n（会先向下面这个目录申请一次访问授权）`)) return;
-						const result = await request("/purge", {
-							method: "POST",
-							body: JSON.stringify({ id: record.id }),
-						});
-						applyRecords(result.records);
-						toast("已删除该会话文件");
-					}
-				} catch (err) {
-					toast(`操作失败：${err instanceof Error ? err.message : String(err)}`);
-				} finally {
-					button.disabled = false;
-				}
-			});
-		});
-		const select = item.querySelector('select[data-role="retention"]');
-		select?.addEventListener("change", async () => {
+	const groups = new Map();
+	for (const record of records) {
+		const folder = projectFolderOf(record.path);
+		if (!groups.has(folder)) groups.set(folder, []);
+		groups.get(folder).push(record);
+	}
+	for (const [folder, items] of groups) {
+		const group = document.createElement("div");
+		group.className = "sa-group";
+		const head = document.createElement("div");
+		head.className = "sa-group-h";
+		const label = projectLabel(folder);
+		head.innerHTML = `<span title="${escapeAttr(label)}">${escapeHtml(label.split(/[\\/]/).pop() || label)}</span><span>${items.length}</span>`;
+		group.appendChild(head);
+		for (const record of items) {
+			group.appendChild(renderPanelItem(record));
+		}
+		list.appendChild(group);
+	}
+}
+
+function renderPanelItem(record) {
+	const item = document.createElement("div");
+	item.className = "sa-item";
+	item.dataset.saUi = "1";
+	item.dataset.saPath = record.path;
+	const expired = record.status === "expired";
+	item.innerHTML = `
+		<div class="sa-item-title" title="${escapeAttr(record.title || record.path)}">${escapeHtml(record.title || "(未命名对话)")}</div>
+		<div class="sa-item-meta">${escapeHtml(formatDay(record.expiresAt, record.status))}</div>
+		${record.lastError ? `<div class="sa-item-meta err">${escapeHtml(record.lastError)}</div>` : ""}
+		<div class="sa-item-row">
+			<select data-role="retention" title="到期时间">
+				${RETENTION_OPTIONS.map(
+					(o) => `<option value="${o.days}"${Number(record.days) === o.days ? " selected" : ""}>${o.label}</option>`,
+				).join("")}
+			</select>
+			<button type="button" class="sa-mini" data-role="restore" title="恢复到侧边栏${expired ? "" : "（行还在隐藏中，恢复后闪烁定位）"}">恢复</button>
+			<button type="button" class="sa-mini danger" data-role="purge" title="真删 .jsonl 文件（不可恢复）">删除</button>
+		</div>`;
+	item.querySelectorAll("button").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const role = button.dataset.role;
+			button.disabled = true;
 			try {
-				const result = await request("/retention", {
-					method: "POST",
-					body: JSON.stringify({ id: record.id, days: Number(select.value) }),
-				});
-				applyRecords(result.records);
+				if (role === "restore") {
+					const result = await request("/restore", {
+						method: "POST",
+						body: JSON.stringify({ id: record.id }),
+					});
+					applyRecords(result.records);
+					scan();
+					flashRestoredRow(record);
+					toast(`已恢复「${record.title || record.path}」`);
+				} else if (role === "purge") {
+					if (!window.confirm(`真的删除这个会话文件？不可恢复。\n\n${record.path}\n\n（会先向该目录申请一次访问授权）`)) {
+						button.disabled = false;
+						return;
+					}
+					const result = await request("/purge", {
+						method: "POST",
+						body: JSON.stringify({ id: record.id }),
+					});
+					applyRecords(result.records);
+					toast("已删除该会话文件");
+				}
 			} catch (err) {
-				toast(`改期失败：${err instanceof Error ? err.message : String(err)}`);
+				toast(`操作失败：${err instanceof Error ? err.message : String(err)}`);
+				button.disabled = false;
 			}
 		});
-		list.appendChild(item);
+	});
+	const select = item.querySelector('select[data-role="retention"]');
+	select?.addEventListener("change", async () => {
+		try {
+			const result = await request("/retention", {
+				method: "POST",
+				body: JSON.stringify({ id: record.id, days: Number(select.value) }),
+			});
+			applyRecords(result.records);
+		} catch (err) {
+			toast(`改期失败：${err instanceof Error ? err.message : String(err)}`);
+		}
+	});
+	return item;
+}
+
+/** 恢复后在侧边栏找到那一行：滚动过去 + 闪烁边框；找不到/分区折叠就退回 toast 提示项目名。 */
+function flashRestoredRow(record) {
+	const ids = [normPath(record.path), sessionIdOf(record.path)].filter(Boolean);
+	for (const row of document.querySelectorAll(".lp-row")) {
+		const path = rowSessionPath(row);
+		const key = normPath(row.getAttribute("data-session-key") ?? "");
+		if ((!path || normPath(path) !== ids[0]) && (!key || !ids.includes(key))) continue;
+		if (!row.offsetParent) continue; // 分区折叠或视口外层隐藏，滚不到
+		row.scrollIntoView({ block: "center", behavior: "smooth" });
+		row.classList.add("sa-flash");
+		window.setTimeout(() => row.classList.remove("sa-flash"), 2800);
+		return;
 	}
+	const folder = projectFolderOf(record.path);
+	toast(`已恢复「${record.title || record.path}」· 所在项目：${projectLabel(folder)}（侧边栏未显示该行，切到该项目即可见）`);
 }
 
 function openPanel() {
@@ -438,12 +453,21 @@ function openPanel() {
 	panel.dataset.saUi = "1";
 	panel.innerHTML = `
 		<header>
-			<h3>🗄️ 会话归档</h3>
+			<h3>🗄 归档</h3>
+			<input type="search" class="sa-search" placeholder="搜索标题 / 路径…" />
 			<span class="sa-count"></span>
 			<button type="button" class="sa-close" title="关闭">✕</button>
 		</header>
 		<div class="sa-list"></div>`;
 	panel.querySelector(".sa-close")?.addEventListener("click", closePanel);
+	const search = panel.querySelector(".sa-search");
+	search?.addEventListener("input", () => renderPanel());
+	search?.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") {
+			event.stopPropagation();
+			closePanel();
+		}
+	});
 	document.body.appendChild(panel);
 	panelEl = panel;
 	state.panelOpen = true;
@@ -558,13 +582,7 @@ function init() {
 		window.removeEventListener("focus", syncOnFocus);
 	});
 
-	document.addEventListener("keydown", (event) => {
-		if (event.key !== "Escape") return;
-		if (dialogEl) {
-			event.stopPropagation();
-			closeArchiveDialog();
-		}
-	});
+
 
 	const host = window.__piWebUiHost;
 	if (host && typeof host.onUiAction === "function") {
@@ -581,7 +599,6 @@ function dispose() {
 	scanTimer = null;
 	if (pollTimer) window.clearInterval(pollTimer);
 	pollTimer = null;
-	closeArchiveDialog();
 	closePanel();
 	toastEl?.remove();
 	toastEl = null;
