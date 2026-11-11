@@ -293,6 +293,18 @@ export default {
 		mkdirSync(dataDir, { recursive: true });
 
 		let state = loadState(statePath);
+		// 载入时去重过的旧数据要立刻落盘，否则每次启动都白算一遍
+		try {
+			if (existsSync(statePath)) {
+				const raw = JSON.parse(readFileSync(statePath, "utf8"));
+				if (Array.isArray(raw?.records) && raw.records.length !== state.records.length) {
+					saveState(statePath, state);
+					host.log("info", `会话归档：载入时清理了 ${raw.records.length - state.records.length} 条重复记录`);
+				}
+			}
+		} catch {
+			/* 读不回来就跳过迁移 */
+		}
 		const settings = () => {
 			const values = host.getSettings?.() ?? {};
 			return {
