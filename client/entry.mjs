@@ -484,7 +484,7 @@ function renderPanelItem(record) {
 					});
 					applyRecords(result.records);
 					scan();
-					flashRestoredRow(record);
+					await flashRestoredRow(record);
 					toast(`已恢复「${record.title || record.path}」`);
 				} else if (role === "purge") {
 					const ok = await saConfirm({
@@ -520,20 +520,73 @@ function renderPanelItem(record) {
 }
 
 /** 恢复后在侧边栏找到那一行：滚动过去 + 闪烁边框；找不到/分区折叠就退回 toast 提示项目名。 */
-function flashRestoredRow(record) {
+/**
+ * 行被折叠的项目/分区藏起来时，把它展开：从行往上找到最近的
+ * aria-expanded="false" 控件点一下（宿主折叠头都是这个约定），
+ * 展开后等两帧让布局稳定再滚动。
+ */
+async function ensureRowVisible(row) {
+	if (row.getClientRects().length > 0) return true;
+	for (let depth = 0; depth < 8; depth += 1) {
+		let toggled = false;
+		let node = row.parentElement;
+		while (node && node !== document.body) {
+			const collapsed =
+				node.getAttribute("aria-expanded") === "false"
+					? node
+					: node.querySelector?.(':scope > .lp-section-header button[aria-expanded="false"], :scope > [aria-expanded="false"]');
+			if (collapsed) {
+				collapsed.click();
+				toggled = true;
+				break;
+			}
+			node = node.parentElement;
+		}
+		if (!toggled) break;
+		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		if (row.getClientRects().length > 0) {
+			await new Promise((resolve) => window.setTimeout(resolve, 80));
+			return true;
+		}
+	}
+	return row.getClientRects().length > 0;
+}
+
+let flashTimer = null;
+
+function flashRow(row) {
+	// 同一个行反复闪会叠动画，先把上一次的收干净
+	if (flashTimer) window.clearTimeout(flashTimer);
+	for (const el of document.querySelectorAll(".lp-row.sa-flash")) el.classList.remove("sa-flash");
+	void row.offsetWidth; // 强制重排，让 animation 能重放
+	row.classList.add("sa-flash");
+	flashTimer = window.setTimeout(() => {
+		row.classList.remove("sa-flash");
+		flashTimer = null;
+	}, 2800);
+}
+
+async function flashRestoredRow(record) {
 	const ids = [normPath(record.path), sessionIdOf(record.path)].filter(Boolean);
+	const folder = projectFolderOf(record.path);
+	const fallback = () =>
+		toast(`已恢复「${record.title || record.path}」· 所在项目：${projectLabel(folder)}（侧边栏没显示这一行，切到该项目即可见）`);
 	for (const row of document.querySelectorAll(".lp-row")) {
 		const path = rowSessionPath(row);
 		const key = normPath(row.getAttribute("data-session-key") ?? "");
-		if ((!path || normPath(path) !== ids[0]) && (!key || !ids.includes(key))) continue;
-		if (!row.offsetParent) continue; // 分区折叠或视口外层隐藏，滚不到
+		const hit = (path && normPath(path) === ids[0]) || (key && ids.includes(key));
+		if (!hit) continue;
+		// 折叠着的项目先展开，否则闪了也看不见，用户以为没恢复
+		const visible = await ensureRowVisible(row);
+		if (!visible) {
+			fallback();
+			return;
+		}
 		row.scrollIntoView({ block: "center", behavior: "smooth" });
-		row.classList.add("sa-flash");
-		window.setTimeout(() => row.classList.remove("sa-flash"), 2800);
+		flashRow(row);
 		return;
 	}
-	const folder = projectFolderOf(record.path);
-	toast(`已恢复「${record.title || record.path}」· 所在项目：${projectLabel(folder)}（侧边栏未显示该行，切到该项目即可见）`);
+	fallback();
 }
 
 function openPanel() {
