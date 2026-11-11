@@ -19,10 +19,10 @@ const RESCAN_MS = 1_500;
 const ICON_ARCHIVE = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>`;
 
 const RETENTION_OPTIONS = [
-	{ days: 1, label: "1 天后删除" },
-	{ days: 7, label: "7 天后删除" },
-	{ days: 30, label: "30 天后删除" },
-	{ days: 0, label: "永不删除" },
+	{ days: 1, label: "1 天后提醒", short: "1 天" },
+	{ days: 7, label: "7 天后提醒", short: "7 天" },
+	{ days: 30, label: "30 天后提醒", short: "30 天" },
+	{ days: 0, label: "永不提醒", short: "永不" },
 ];
 
 const state = {
@@ -158,7 +158,7 @@ function ensureStyles() {
 .sa-search:hover{border-color:color-mix(in srgb,var(--accent,#5b8cff) 45%,var(--border,#3a3d45))}
 .sa-search:focus{border-color:var(--accent,#5b8cff);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#5b8cff) 22%,transparent)}
 .sa-panel .sa-count{opacity:.55;font-size:11px;flex:0 0 auto}
-.sa-list{flex:1;overflow:auto;padding:4px 6px 8px}
+.sa-list{flex:1;overflow:auto;padding:2px 5px 6px}
 .sa-group{margin-top:6px}
 .sa-group+.sa-group{border-top:1px solid var(--border,#3a3d45)}
 .sa-group-h{display:flex;align-items:center;gap:5px;padding:6px 4px 2px;opacity:.72;font-size:11px;font-weight:600;cursor:pointer;user-select:none;border-radius:6px}
@@ -167,14 +167,24 @@ function ensureStyles() {
 .sa-group-h[data-open="0"] .sa-caret{transform:rotate(-90deg)}
 .sa-group-h .sa-group-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sa-group-h .sa-group-count{flex:0 0 auto;margin-left:auto;opacity:.8;font-variant-numeric:tabular-nums}
-.sa-item{border-radius:8px;padding:6px 6px 6px 8px;margin:2px 0}
+.sa-item{border-radius:8px;padding:5px 6px 5px 7px;margin:1px 0}
 .sa-item:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 8%,transparent)}
 .sa-item-title{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sa-item-meta{opacity:.6;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-item-meta{opacity:.58;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.35}
 .sa-item-meta.err{color:#ff8080;opacity:1}
-.sa-item-row{display:flex;align-items:center;gap:4px;margin-top:4px}
-.sa-item-row select{flex:1;min-width:0;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:5px;padding:1px 4px;font-size:11px}
-.sa-mini{border:1px solid var(--border,#3a3d45);background:transparent;color:inherit;border-radius:5px;padding:2px 8px;cursor:pointer;font-size:11px;white-space:nowrap}
+.sa-item-row{display:flex;align-items:center;gap:4px;margin-top:3px}
+.sa-dd{position:relative;flex:1;min-width:0}
+.sa-dd-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:4px;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1.5;transition:border-color .12s,background .12s}
+.sa-dd-btn:hover{border-color:color-mix(in srgb,var(--accent,#5b8cff) 45%,var(--border,#3a3d45))}
+.sa-dd.open .sa-dd-btn{border-color:var(--accent,#5b8cff)}
+.sa-dd-caret{opacity:.6;font-size:9px;transition:transform .12s}
+.sa-dd.open .sa-dd-caret{transform:rotate(180deg)}
+.sa-dd-menu{position:absolute;z-index:1001;left:0;right:0;bottom:calc(100% + 3px);background:var(--bg-elev,#1f2127);border:1px solid var(--border,#3a3d45);border-radius:6px;box-shadow:0 8px 22px rgba(0,0,0,.4);padding:3px;display:none}
+.sa-dd.open .sa-dd-menu{display:block}
+.sa-dd-item{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;border-radius:4px;padding:3px 7px;font-size:11.5px;cursor:pointer}
+.sa-dd-item:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 16%,transparent)}
+.sa-dd-item[data-active="1"]{color:var(--accent,#5b8cff);font-weight:600}
+.sa-mini{border:1px solid var(--border,#3a3d45);background:transparent;color:inherit;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:11px;white-space:nowrap;line-height:1.5;transition:border-color .12s,color .12s}
 .sa-mini:hover{border-color:var(--accent,#5b8cff);color:var(--accent,#5b8cff)}
 .sa-mini.danger{color:#ff8080;border-color:#ff808055}
 .sa-mini.danger:hover{border-color:#ff8080}
@@ -406,11 +416,18 @@ function renderPanelItem(record) {
 		<div class="sa-item-meta">${escapeHtml(formatDay(record.expiresAt, record.status))}</div>
 		${record.lastError ? `<div class="sa-item-meta err">${escapeHtml(record.lastError)}</div>` : ""}
 		<div class="sa-item-row">
-			<select data-role="retention" title="到期时间">
-				${RETENTION_OPTIONS.map(
-					(o) => `<option value="${o.days}"${Number(record.days) === o.days ? " selected" : ""}>${o.label}</option>`,
-				).join("")}
-			</select>
+			<div class="sa-dd" data-role="retention" title="到期时间">
+				<button type="button" class="sa-dd-btn">
+					<span>${escapeHtml(RETENTION_OPTIONS.find((o) => o.days === Number(record.days))?.label ?? `${record.days} 天后提醒`)}</span>
+					<span class="sa-dd-caret">▾</span>
+				</button>
+				<div class="sa-dd-menu">
+					${RETENTION_OPTIONS.map(
+						(o) =>
+							`<button type="button" class="sa-dd-item" data-days="${o.days}"${Number(record.days) === o.days ? ' data-active="1"' : ""}>${o.label}</button>`,
+					).join("")}
+				</div>
+			</div>
 			<button type="button" class="sa-mini" data-role="restore" title="恢复到侧边栏${expired ? "" : "（行还在隐藏中，恢复后闪烁定位）"}">恢复</button>
 			<button type="button" class="sa-mini danger" data-role="purge" title="真删 .jsonl 文件（不可恢复）">删除</button>
 		</div>`;
@@ -446,19 +463,38 @@ function renderPanelItem(record) {
 			}
 		});
 	});
-	const select = item.querySelector('select[data-role="retention"]');
-	select?.addEventListener("change", async () => {
-		try {
-			const result = await request("/retention", {
-				method: "POST",
-				body: JSON.stringify({ id: record.id, days: Number(select.value) }),
+	const dd = item.querySelector('.sa-dd[data-role="retention"]');
+	if (dd) {
+		const btn = dd.querySelector(".sa-dd-btn");
+		btn?.addEventListener("click", (event) => {
+			event.stopPropagation();
+			const wasOpen = dd.classList.contains("open");
+			closeAllDropdowns();
+			if (!wasOpen) dd.classList.add("open");
+		});
+		dd.querySelectorAll(".sa-dd-item").forEach((opt) => {
+			opt.addEventListener("click", async (event) => {
+				event.stopPropagation();
+				closeAllDropdowns();
+				const days = Number(opt.dataset.days);
+				if (days === Number(record.days)) return;
+				try {
+					const result = await request("/retention", {
+						method: "POST",
+						body: JSON.stringify({ id: record.id, days }),
+					});
+					applyRecords(result.records);
+				} catch (err) {
+					toast(`改期失败：${err instanceof Error ? err.message : String(err)}`);
+				}
 			});
-			applyRecords(result.records);
-		} catch (err) {
-			toast(`改期失败：${err instanceof Error ? err.message : String(err)}`);
-		}
-	});
+		});
+	}
 	return item;
+}
+
+function closeAllDropdowns() {
+	for (const dd of document.querySelectorAll(".sa-dd.open")) dd.classList.remove("open");
 }
 
 /** 恢复后在侧边栏找到那一行：滚动过去 + 闪烁边框；找不到/分区折叠就退回 toast 提示项目名。 */
@@ -607,6 +643,14 @@ function init() {
 			scan();
 		}
 	});
+
+	const closeDropdownsOnClick = (event) => {
+		const target = event.target;
+		if (target instanceof Element && target.closest(".sa-dd")) return;
+		closeAllDropdowns();
+	};
+	document.addEventListener("click", closeDropdownsOnClick);
+	cleanups.push(() => document.removeEventListener("click", closeDropdownsOnClick));
 
 	// 别的窗口/标签页归档后要立刻跟上：广播偶尔丢（比如那一刻页面在后台休眠），切回来时补一次。
 	const syncOnFocus = () => {
