@@ -147,7 +147,7 @@ function ensureStyles() {
 .sa-btn.primary{background:var(--accent,#5b8cff);border-color:var(--accent,#5b8cff);color:var(--accent-contrast,#fff)}
 .sa-btn.danger{color:#ff8080;border-color:#ff808055}
 .sa-btn:disabled{opacity:.5;cursor:not-allowed}
-.sa-panel{position:fixed;right:12px;top:56px;width:320px;max-height:min(560px,calc(100vh - 80px));background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.45);z-index:9400;display:flex;flex-direction:column;font:12.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+.sa-panel{position:fixed;right:12px;top:56px;width:264px;max-height:min(560px,calc(100vh - 80px));background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.45);z-index:9400;display:flex;flex-direction:column;font:12.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
 .sa-panel header{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border,#3a3d45)}
 .sa-panel header h3{margin:0;font-size:13px;font-weight:600;flex:0 0 auto}
 .sa-search{flex:1;min-width:0;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:6px;padding:3px 8px;font-size:12px;outline:none}
@@ -164,7 +164,7 @@ function ensureStyles() {
 .sa-item-meta{opacity:.6;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sa-item-meta.err{color:#ff8080;opacity:1}
 .sa-item-row{display:flex;align-items:center;gap:4px;margin-top:4px}
-.sa-item-row select{background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:5px;padding:1px 4px;font-size:11px;max-width:96px}
+.sa-item-row select{flex:1;min-width:0;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:5px;padding:1px 4px;font-size:11px}
 .sa-mini{border:1px solid var(--border,#3a3d45);background:transparent;color:inherit;border-radius:5px;padding:2px 8px;cursor:pointer;font-size:11px;white-space:nowrap}
 .sa-mini:hover{border-color:var(--accent,#5b8cff);color:var(--accent,#5b8cff)}
 .sa-mini.danger{color:#ff8080;border-color:#ff808055}
@@ -332,7 +332,7 @@ function renderPanel() {
 		String(r.title ?? "").toLowerCase().includes(query) ||
 		String(r.path ?? "").toLowerCase().includes(query),
 	);
-	if (count) count.textContent = query ? `${records.length}/${state.records.length}` : `${state.records.length}`;
+	if (count) count.textContent = query ? `${records.length}/${state.records.length} 条` : `${state.records.length} 条`;
 	list.innerHTML = "";
 	if (records.length === 0) {
 		list.innerHTML = `<div class="sa-empty">${query ? "没有匹配的归档" : "还没有归档的对话。\n左栏会话行 hover 点 🗄 即可归档。"}</div>`;
@@ -350,7 +350,7 @@ function renderPanel() {
 		const head = document.createElement("div");
 		head.className = "sa-group-h";
 		const label = projectLabel(folder);
-		head.innerHTML = `<span title="${escapeAttr(label)}">${escapeHtml(label.split(/[\\/]/).pop() || label)}</span><span>${items.length}</span>`;
+		head.innerHTML = `<span title="${escapeAttr(label)}">${escapeHtml(label.split(/[\\/]/).pop() || label)}</span><span>${items.length} 条</span>`;
 		group.appendChild(head);
 		for (const record of items) {
 			group.appendChild(renderPanelItem(record));
