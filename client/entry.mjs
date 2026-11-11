@@ -31,6 +31,7 @@ const state = {
 	ids: new Set(),
 	defaultDays: 7,
 	showActiveRowButton: false,
+	autoDeleteOnExpiry: false,
 	panelOpen: false,
 	collapsedGroups: new Set(),
 	busy: false,
@@ -70,6 +71,8 @@ function sessionIdOf(path) {
 }
 
 function formatDay(iso, status) {
+	const autoDelete = state.autoDeleteOnExpiry;
+	const verb = autoDelete ? "删除" : "提醒";
 	if (status === "expired") {
 		const at = iso ? new Date(iso).toLocaleString() : "";
 		return `已到期（${at}）· 文件未删除`;
@@ -78,10 +81,12 @@ function formatDay(iso, status) {
 	const t = Date.parse(iso);
 	if (!Number.isFinite(t)) return "永不到期";
 	const left = t - Date.now();
-	const days = Math.ceil(left / DAY_MS);
 	const text = new Date(t).toLocaleString();
-	if (days <= 0) return `即将删除（${text}）`;
-	return `${days} 天后删除（${text}）`;
+	if (left <= 0) return `已到期，等待处理（${text}）`;
+	const days = Math.ceil(left / DAY_MS);
+	const hours = Math.ceil(left / 3_600_000);
+	const remain = days >= 1 ? `剩 ${days} 天` : `剩 ${hours} 小时`;
+	return `${remain}${verb}（${text}）`;
 }
 
 async function request(pathname, init) {
@@ -116,6 +121,7 @@ async function refresh() {
 			? Number(data.settings.defaultDays)
 			: 7;
 		state.showActiveRowButton = data?.settings?.showActiveRowButton === true;
+		state.autoDeleteOnExpiry = data?.settings?.autoDeleteOnExpiry === true;
 		applyRecords(data?.records);
 		scan();
 	} catch (err) {
@@ -138,6 +144,7 @@ function ensureStyles() {
 .lp-sa-btn svg{pointer-events:none}
 .lp-section-actions .lp-slot-btn.sa-header-icon{display:inline-flex;align-items:center;justify-content:center;padding:2px 4px}
 .lp-section-actions .lp-slot-btn.sa-header-icon svg{width:14px;height:14px}
+.lp-section-actions .lp-slot-btn.sa-header-icon.sa-active{color:var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 18%,transparent)}
 .sa-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:flex;align-items:center;justify-content:center}
 .sa-card{background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 18px 48px rgba(0,0,0,.45);width:min(440px,calc(100vw - 32px));padding:16px 18px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 .sa-card h3{margin:0 0 4px;font-size:15px;font-weight:600}
@@ -283,14 +290,21 @@ async function archiveNow(path, title, current) {
  * 宿主左栏标题栏的 slot 渲染器只认 icon 字符串（It 助手），不认 iconSvg，
  * 所以拿到 DOM 后把它换成描边 SVG，与旁边的 + / ‹ 同一视觉语言。
  */
+function isArchiveHeaderButton(btn) {
+	const label = (btn.getAttribute("aria-label") ?? btn.textContent ?? "").trim();
+	return label === "归档" || label === "Archive";
+}
+
 function upgradeHeaderButtons() {
 	for (const btn of document.querySelectorAll(".lp-section-actions .lp-slot-btn")) {
-		if (btn.dataset.saIcon === "1") continue;
-		const label = (btn.getAttribute("aria-label") ?? btn.textContent ?? "").trim();
-		if (label !== "归档" && label !== "Archive") continue;
-		btn.dataset.saIcon = "1";
-		btn.innerHTML = ICON_ARCHIVE;
-		btn.classList.add("sa-header-icon");
+		if (!isArchiveHeaderButton(btn) && btn.dataset.saIcon !== "1") continue;
+		if (btn.dataset.saIcon !== "1") {
+			btn.dataset.saIcon = "1";
+			btn.innerHTML = ICON_ARCHIVE;
+			btn.classList.add("sa-header-icon");
+		}
+		// 面板开着时图标跟着高亮，和宿主 active 按钮一个观感
+		btn.classList.toggle("sa-active", state.panelOpen);
 	}
 }
 
@@ -337,6 +351,7 @@ function closePanel() {
 	panelEl?.remove();
 	panelEl = null;
 	state.panelOpen = false;
+	upgradeHeaderButtons();
 }
 
 /** 从会话路径提取项目文件夹（sessions/<编码后的 cwd>/<file>.jsonl）。 */
@@ -586,6 +601,7 @@ function openPanel() {
 	document.body.appendChild(panel);
 	panelEl = panel;
 	state.panelOpen = true;
+	upgradeHeaderButtons();
 	renderPanel();
 	void refresh();
 }
@@ -657,10 +673,20 @@ function init() {
 	ensureStyles();
 	void refresh();
 
+	const MODAL_SELECTOR = ".modal-backdrop, .modal-dialog, [role='dialog'], .skill-inspect-dialog, .set-plugin-page";
 	observer = new MutationObserver((mutations) => {
 		for (const mutation of mutations) {
 			const target = mutation.target;
 			if (target instanceof Element && target.closest("[data-sa-ui='1']")) continue;
+			// 宿主弹窗/遮罩一出现就让位（用户点了设置、命令面板、确认框等）
+			if (panelEl) {
+				for (const node of mutation.addedNodes) {
+					if (node instanceof Element && (node.matches(MODAL_SELECTOR) || node.querySelector(MODAL_SELECTOR))) {
+						closePanel();
+						break;
+					}
+				}
+			}
 			scheduleScan();
 			return;
 		}
@@ -675,6 +701,11 @@ function init() {
 		if (document.visibilityState === "hidden") return;
 		void refresh();
 	}, POLL_MS);
+	// 文案里的"剩 N 天"要自己走：不联网的本地重绘
+	const tickTimer = window.setInterval(() => {
+		if (panelEl && document.visibilityState !== "hidden") renderPanel();
+	}, 60_000);
+	cleanups.push(() => window.clearInterval(tickTimer));
 
 	window.addEventListener("pi-web-ui:plugin-data", (event) => {
 		if (event?.detail?.pluginId !== PLUGIN_ID) return;
@@ -684,6 +715,22 @@ function init() {
 			scan();
 		}
 	});
+
+	const onEscape = (event) => {
+		if (event.key !== "Escape") return;
+		const openDropdowns = document.querySelector(".sa-dd.open");
+		if (openDropdowns) {
+			event.stopPropagation();
+			closeAllDropdowns();
+			return;
+		}
+		if (panelEl) {
+			event.stopPropagation();
+			closePanel();
+		}
+	};
+	document.addEventListener("keydown", onEscape, true);
+	cleanups.push(() => document.removeEventListener("keydown", onEscape, true));
 
 	const closeDropdownsOnClick = (event) => {
 		const target = event.target;
