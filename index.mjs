@@ -421,9 +421,10 @@ export default {
 		 * 标题可疑时读 .jsonl 里的真名：session_info（宿主改名）优先，其次第一条用户消息。
 		 * 只读头 32KB + 尾 128KB —— 会话文件可能几百 MB，整读会卡住宿主事件循环。
 		 */
+		const TITLE_NOISE = /^当前|另一处|运行中|\d{1,2}:\d{2}\s*$/;
 		const resolveTitle = (absPath, fallback, current) => {
 			const label = String(fallback ?? "").trim();
-			const suspicious = current === true || /^当前/.test(label) || /^\d{1,2}:\d{2}/.test(label);
+			const suspicious = current === true || TITLE_NOISE.test(label);
 			if (!suspicious) return label;
 			const { head, tail } = readSessionEdges(absPath);
 			if (!head && !tail) return label;
@@ -455,7 +456,7 @@ export default {
 			let healed = false;
 			for (const record of state.records) {
 				if (record.status !== "archived" && record.status !== "expired") continue;
-				const suspicious = /^当前/.test(record.title ?? "") || /^\d{1,2}:\d{2}/.test(record.title ?? "");
+				const suspicious = TITLE_NOISE.test(record.title ?? "");
 				if (!suspicious || !existsSync(record.path)) continue;
 				const fixed = resolveTitle(record.path, record.title, true);
 				if (fixed && fixed !== record.title) {
@@ -479,7 +480,7 @@ export default {
 			// 归档本身只写记录 + 隐藏行，不碰文件、不申请任何目录授权。
 			const { record, created } = archiveRecord(state, {
 				path: rawPath,
-				title: resolveTitle(rawPath, body.title, body.current === true),
+				title: resolveTitle(rawPath, body.title, body.current === true || body.dirty === true),
 				extension: body.extension,
 				days,
 			});

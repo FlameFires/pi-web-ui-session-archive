@@ -239,6 +239,13 @@ function rowLabel(row) {
 	return text.slice(0, 80);
 }
 
+/** 这类行的可见文本是「标题 + 另一处 + 时间」拼的，不能当标题用。 */
+function rowLabelIsNoisy(row) {
+	const el = row.querySelector(".session-item[title]");
+	const title = el?.getAttribute("title") ?? "";
+	return !/\.jsonl$/i.test(title.trim());
+}
+
 function rowIsActive(row) {
 	return Boolean(row.querySelector(".session-item.active"));
 }
@@ -266,7 +273,7 @@ function makeArchiveButton(row, path) {
 	btn.addEventListener("click", (event) => {
 		event.preventDefault();
 		event.stopPropagation();
-		void archiveNow(path, rowLabel(row), rowIsActive(row));
+		void archiveNow(path, rowLabel(row), rowIsActive(row), rowLabelIsNoisy(row));
 	});
 	return btn;
 }
@@ -286,12 +293,12 @@ function rowIsArchived(row, path) {
 	return false;
 }
 
-async function archiveNow(path, title, current) {
+async function archiveNow(path, title, current, dirty) {
 	const days = Number.isFinite(state.defaultDays) ? state.defaultDays : 30;
 	try {
 		const result = await request("/archive", {
 			method: "POST",
-			body: JSON.stringify({ path, title, days, current: current === true }),
+			body: JSON.stringify({ path, title, days, current: current === true, dirty: dirty === true }),
 		});
 		if (Array.isArray(result.records)) applyRecords(result.records);
 		else await refresh();
