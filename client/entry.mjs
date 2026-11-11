@@ -16,7 +16,7 @@ const BTN_CLASS = "lp-sa-btn";
 const POLL_MS = 30_000;
 const RESCAN_MS = 1_500;
 
-const ICON_ARCHIVE = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M9.5 12.5h5"/></svg>`;
+const ICON_ARCHIVE = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>`;
 
 const RETENTION_OPTIONS = [
 	{ days: 1, label: "1 天后删除" },
@@ -453,7 +453,7 @@ function openPanel() {
 	panel.dataset.saUi = "1";
 	panel.innerHTML = `
 		<header>
-			<h3>🗄 归档</h3>
+			<h3>归档</h3>
 			<input type="search" class="sa-search" placeholder="搜索标题 / 路径…" />
 			<span class="sa-count"></span>
 			<button type="button" class="sa-close" title="关闭">✕</button>
