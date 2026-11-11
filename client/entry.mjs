@@ -228,13 +228,14 @@ function rowSessionPath(row) {
 
 /** 行文本 = 标题 + 另一处/运行中 + 时间，展示/存储前先剥掉这些噪音。 */
 function cleanRowLabel(text) {
-	return String(text ?? "")
+	let value = String(text ?? "")
 		.replace(/\s+/g, " ")
 		.replace(/(另一处|运行中|别处|elsewhere|running)\s*/gi, " ")
-		.replace(/\s*\d{1,2}:\d{2}\s*$/, "")
-		.replace(/^当前\s*/, "")
-		.trim()
-		.slice(0, 80);
+		.replace(/^当前\s*/, "");
+	// 行尾的宿主时间戳可能是 18:06 / 11/10 / 2026/11/10 / 2026-11-10，逐个剥掉
+	const tail = /\s*(?:\d{1,2}:\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d{4}-\d{1,2}-\d{1,2})\s*$/;
+	while (tail.test(value)) value = value.replace(tail, "");
+	return value.trim().slice(0, 80);
 }
 
 function rowLabel(row) {

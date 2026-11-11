@@ -201,3 +201,22 @@ describe("落盘", () => {
 		}
 	});
 });
+
+describe("脏标题判定（行尾时间戳）", () => {
+	const TIME_TAIL = "(?:\\d{1,2}:\\d{2}|\\d{1,2}/\\d{1,2}(?:/\\d{2,4})?|\\d{4}-\\d{1,2}-\\d{1,2})";
+	const NOISE = new RegExp(
+		`^当前|^${TIME_TAIL}\\s*$|^(?:另一处|运行中|别处)\\s*$|(?:另一处|运行中|别处)\\s*${TIME_TAIL}\\s*$|${TIME_TAIL}\\s*$`,
+	);
+
+	it("行尾时间 / 日期 / 徽标都算脏", () => {
+		for (const t of ["say ok11/10", "1另一处18:06", "当前115:51", "115:51", "运行中", "eval 2026/11/10"]) {
+			assert.equal(NOISE.test(t), true, `${t} 应判脏`);
+		}
+	});
+
+	it("正常标题不动（含「运行中」字样、含日期的正文）", () => {
+		for (const t of ["监控运行中日志", "monitor", "2026/11/10 修复登录", "微店代理池优化：keepalive + 半死判废"]) {
+			assert.equal(NOISE.test(t), false, `${t} 不该判脏`);
+		}
+	});
+});

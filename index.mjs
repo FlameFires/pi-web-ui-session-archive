@@ -435,8 +435,11 @@ export default {
 		// 只认「明显是行渲染噪音」的形状：
 		//   当前<时间> / 纯时间 / <标题>另一处<时间> / <标题>运行中<时间>
 		// 不要裸匹配「运行中」或任意尾部时间 —— 那是合法标题的一部分。
-		const TITLE_NOISE =
-			/^当前|^\d{1,2}:\d{2}\s*$|^(?:另一处|运行中|别处)\s*$|(?:另一处|运行中|别处)\s*\d{1,2}:\d{2}\s*$/;
+		// 行尾时间戳可能是 HH:MM / M/D / YYYY/M/D / YYYY-M-D
+		const TIME_TAIL = "(?:\\d{1,2}:\\d{2}|\\d{1,2}/\\d{1,2}(?:/\\d{2,4})?|\\d{4}-\\d{1,2}-\\d{1,2})";
+		const TITLE_NOISE = new RegExp(
+			`^当前|^${TIME_TAIL}\\s*$|^(?:另一处|运行中|别处)\\s*$|(?:另一处|运行中|别处)\\s*${TIME_TAIL}\\s*$|${TIME_TAIL}\\s*$`,
+		);
 		const resolveTitle = (absPath, fallback, current) => {
 			const label = String(fallback ?? "").trim();
 			const suspicious = current === true || TITLE_NOISE.test(label);

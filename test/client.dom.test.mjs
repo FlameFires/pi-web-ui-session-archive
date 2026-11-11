@@ -579,6 +579,27 @@ describe("session-archive 浏览器侧 DOM", () => {
 	});
 });
 
+describe("行文本清洗", () => {
+	it("行尾日期 say ok11/10 也剥掉（不只是 HH:MM）", async (t) => {
+		const path = sessionFile("-e--elsewhere", UB);
+		const key = sessionKey(path);
+		const env = await mountDom(t, {
+			html: rowHtml({ id: "dateTail", title: "E:/work/dir", text: "say ok11/10", sessionKey: key }),
+			state: () => ({ records: [] }),
+			onRequest: (call) =>
+				call.method === "POST" && call.path === "/archive"
+					? { body: { ok: true, created: true, record: archivedRecord(call.body.path) } }
+					: null,
+		});
+		await settle();
+		env.document.querySelector('[data-testid="dateTail"] button.lp-sa-btn').click();
+		await settle();
+		const call = env.calls.find((item) => item.path === "/archive");
+		assert.ok(call);
+		assert.equal(call.body.title, "say ok", "日期尾巴要剥掉");
+	});
+});
+
 describe("恢复：折叠项目", () => {
 	it("行不在 DOM（项目折叠）→ 点开对应项目 → 等行出现 → 闪烁", async (t) => {
 		const folder = "--E--work-project-b--";
