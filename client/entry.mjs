@@ -748,6 +748,13 @@ function init() {
 		if (payload?.type === "state") {
 			applyRecords(payload.records);
 			scan();
+		} else if (payload?.type === "purged" && Array.isArray(payload.paths)) {
+			for (const path of payload.paths) {
+				state.gone.add(normPath(path));
+				const sid = sessionIdOf(path);
+				if (sid) state.gone.add(sid);
+			}
+			scan();
 		}
 	});
 

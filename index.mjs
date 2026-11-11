@@ -382,6 +382,11 @@ export default {
 				const result = await deleteRecordFile(record);
 				if (result.ok) {
 					deleted += 1;
+					try {
+						host.broadcast?.({ type: "purged", paths: [record.path] });
+					} catch {
+						/* 忽略广播失败 */
+					}
 					host.notify?.("info", `🗄️ 归档到期，已删除会话文件：${record.title || record.path}`);
 				} else {
 					host.log("warn", `归档到期删除失败：${record.path}`, result.error);
@@ -503,6 +508,14 @@ export default {
 			const result = await deleteRecordFile(record);
 			persist();
 			publish();
+			if (result.ok) {
+				// 宿主没有目录轮询，其它窗口只能靠这条广播即时收起残留行
+				try {
+					host.broadcast?.({ type: "purged", paths: [record.path] });
+				} catch {
+					/* 广播失败不影响删除结果 */
+				}
+			}
 			sendJson(res, result.ok ? 200 : 500, { ok: result.ok, error: result.error, records: publicRecords(state) });
 		});
 
