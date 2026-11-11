@@ -32,6 +32,8 @@ const state = {
 	records: [],
 	paths: new Set(),
 	ids: new Set(),
+	// 刚删掉的会话：宿主侧边栏还留着旧渲染，页面会话内继续藏住
+	gone: new Set(),
 	defaultDays: 7,
 	showActiveRowButton: false,
 	autoDeleteOnExpiry: false,
@@ -270,11 +272,12 @@ function makeArchiveButton(row, path) {
  * 「另一处 / 运行的对话」这类行没有 .jsonl 的 title，只能靠这个 key 命中。
  */
 function rowIsArchived(row, path) {
-	if (path && state.paths.has(normPath(path))) return true;
 	const key = normPath(row.getAttribute("data-session-key") ?? "");
-	if (!key) return false;
-	if (state.paths.has(key)) return true;
-	if (state.ids.has(key)) return true;
+	if (path && state.paths.has(normPath(path))) return true;
+	if (key && (state.paths.has(key) || state.ids.has(key))) return true;
+	// 已删除但宿主列表还没刷新：页面会话内继续藏
+	if (path && state.gone.has(normPath(path))) return true;
+	if (key && (state.gone.has(key) || state.gone.has(sessionIdOf(path || key)))) return true;
 	return false;
 }
 
@@ -478,8 +481,12 @@ function renderPanelItem(record) {
 						method: "POST",
 						body: JSON.stringify({ id: record.id }),
 					});
+					state.gone.add(normPath(record.path));
+					const sid = sessionIdOf(record.path);
+					if (sid) state.gone.add(sid);
 					applyRecords(result.records);
-					toast("已删除该会话文件");
+					scan();
+					toast("已删除该会话文件（侧边栏该行刷新后消失）");
 				}
 			} catch (err) {
 				toast(`操作失败：${err instanceof Error ? err.message : String(err)}`);
