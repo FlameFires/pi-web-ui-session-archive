@@ -392,6 +392,17 @@ export default {
 		};
 
 		host.route("GET", "/state", (_req, res) => {
+			// 旧记录里的「当前…」「HH:MM」标题在这里顺带修一次，不必重新归档。
+			let healed = false;
+			for (const record of state.records) {
+				if (record.status !== "archived" && record.status !== "expired") continue;
+				const fixed = resolveTitle(record.path, record.title, true);
+				if (fixed && fixed !== record.title) {
+					record.title = fixed;
+					healed = true;
+				}
+			}
+			if (healed) persist();
 			sendJson(res, 200, { ok: true, records: publicRecords(state), settings: settings() });
 		});
 

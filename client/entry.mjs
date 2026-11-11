@@ -135,6 +135,8 @@ function ensureStyles() {
 .lp-row > .lp-sa-btn.lp-del:hover{color:var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 22%,var(--bg-elev2,#1c1f28))}
 .lp-del-group > .lp-sa-btn.lp-del{position:static;right:auto;transform:none}
 .lp-sa-btn svg{pointer-events:none}
+.lp-section-actions .lp-slot-btn.sa-header-icon{display:inline-flex;align-items:center;justify-content:center;padding:2px 4px}
+.lp-section-actions .lp-slot-btn.sa-header-icon svg{width:14px;height:14px}
 .sa-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9500;display:flex;align-items:center;justify-content:center}
 .sa-card{background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 18px 48px rgba(0,0,0,.45);width:min(440px,calc(100vw - 32px));padding:16px 18px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 .sa-card h3{margin:0 0 4px;font-size:15px;font-weight:600}
@@ -257,8 +259,24 @@ async function archiveNow(path, title, current) {
 	}
 }
 
+/**
+ * 宿主左栏标题栏的 slot 渲染器只认 icon 字符串（It 助手），不认 iconSvg，
+ * 所以拿到 DOM 后把它换成描边 SVG，与旁边的 + / ‹ 同一视觉语言。
+ */
+function upgradeHeaderButtons() {
+	for (const btn of document.querySelectorAll(".lp-section-actions .lp-slot-btn")) {
+		if (btn.dataset.saIcon === "1") continue;
+		const label = (btn.getAttribute("aria-label") ?? btn.textContent ?? "").trim();
+		if (label !== "归档" && label !== "Archive") continue;
+		btn.dataset.saIcon = "1";
+		btn.innerHTML = ICON_ARCHIVE;
+		btn.classList.add("sa-header-icon");
+	}
+}
+
 function scan() {
 	if (!document.body) return;
+	upgradeHeaderButtons();
 	for (const row of document.querySelectorAll(".lp-row")) {
 		const path = rowSessionPath(row);
 		// 已归档的会话按「会话文件路径」和「sessionId」两条线都隐藏：
@@ -460,6 +478,8 @@ function openPanel() {
 		</header>
 		<div class="sa-list"></div>`;
 	panel.querySelector(".sa-close")?.addEventListener("click", closePanel);
+	const count = panel.querySelector(".sa-count");
+	if (count) count.style.display = "none";
 	const search = panel.querySelector(".sa-search");
 	search?.addEventListener("input", () => renderPanel());
 	search?.addEventListener("keydown", (event) => {
