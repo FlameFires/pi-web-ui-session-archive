@@ -251,8 +251,8 @@ describe("session-archive 浏览器侧 DOM", () => {
 
 		assert.equal(env.document.querySelectorAll(".lp-row").length, 4, "夹具应该渲染 4 行");
 		assert.equal(btns("ok").length, 1, "普通行应有且只有一个归档按钮");
-		assert.equal(btns("nodel").length, 0, "没有宿主删除按钮的行不该注入");
-		assert.equal(btns("running").length, 0, ".session-item.is-running 的行不该注入");
+		assert.equal(btns("nodel").length, 1, "宿主没有 ✏/🗑 的行（运行中）也要注入，只是排到最右");
+		assert.equal(btns("running").length, 1, "运行中的行也可以归档（只隐藏，不碰文件）");
 		assert.equal(btns("active").length, 0, "默认设置下 .session-item.active 的行不注入");
 
 		// 按钮自身口径 + 插到宿主删除按钮前面（复用 .lp-del 的 hover 定位）

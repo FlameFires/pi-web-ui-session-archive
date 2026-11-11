@@ -144,6 +144,8 @@ function ensureStyles() {
 .lp-row > .lp-sa-btn.lp-del{right:58px;color:var(--accent,#5b8cff)}
 .lp-row > .lp-sa-btn.lp-del:hover{color:var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 22%,var(--bg-elev2,#1c1f28))}
 .lp-del-group > .lp-sa-btn.lp-del{position:static;right:auto;transform:none}
+/* 宿主这一行没有 ✏/🗑 时（运行中等），归档按钮自己占最右 */
+.lp-row > .lp-sa-btn.lp-del.sa-solo{right:6px}
 .lp-sa-btn svg{pointer-events:none}
 .lp-section-actions .lp-slot-btn.sa-header-icon{display:inline-flex;align-items:center;justify-content:center;padding:2px 4px}
 .lp-section-actions .lp-slot-btn.sa-header-icon svg{width:14px;height:14px}
@@ -287,7 +289,8 @@ function makeArchiveButton(row, path) {
 		// 宿主可能把同一个 .lp-row 元素复用给别的会话（虚拟列表 / 局部 patch），
 		// 所以路径一律在点击时重算，不能用注入时闭包捕获的旧值。
 		const livePath = rowSessionPath(row) || path;
-		void archiveNow(livePath, rowLabel(row), rowIsActive(row), rowLabelIsNoisy(row));
+		const running = Boolean(row.querySelector(".session-item.is-running"));
+		void archiveNow(livePath, rowLabel(row), rowIsActive(row), rowLabelIsNoisy(row), running);
 	});
 	return btn;
 }
@@ -307,7 +310,7 @@ function rowIsArchived(row, path) {
 	return false;
 }
 
-async function archiveNow(path, title, current, dirty) {
+async function archiveNow(path, title, current, dirty, running) {
 	const days = Number.isFinite(state.defaultDays) ? state.defaultDays : 30;
 	try {
 		const result = await request("/archive", {
@@ -318,7 +321,8 @@ async function archiveNow(path, title, current, dirty) {
 		else await refresh();
 		scan();
 		const label = days > 0 ? `${days} 天后提醒清理` : "永不到期";
-		toast(`已归档「${title || path}」· ${label}`, result.record?.id);
+		const runningHint = running ? " · 该对话仍在运行，只是从侧边栏隐藏" : "";
+		toast(`已归档「${title || path}」· ${label}${runningHint}`, result.record?.id);
 	} catch (err) {
 		toast(`归档失败：${err instanceof Error ? err.message : String(err)}`);
 	}
@@ -360,15 +364,18 @@ function scan() {
 		showRow(row);
 		if (!path) continue;
 		if (row.querySelector(`.${BTN_CLASS}`)) continue;
-		// 「运行的对话」里的行是活会话：归档它没有意义（文件还在写）。
-		if (row.querySelector(".session-item.is-running")) continue;
+		// 运行中的行也允许归档：归档只隐藏行、不碰文件；删除文件走到期/手动，
+		// 那时早就跑完了。真正不能归档的是「还没落盘的会话」（没有 .jsonl 路径）。
 		const active = rowIsActive(row);
-		const deleteBtn = rowDeleteButton(row);
-		if (!deleteBtn && !(active && state.showActiveRowButton)) continue;
 		if (active && !state.showActiveRowButton) continue;
+		const deleteBtn = rowDeleteButton(row);
 		const btn = makeArchiveButton(row, path);
+		// 运行中的行宿主不渲染 ✏/🗑：那就自己排到最右（CSS 用 .sa-solo 覆盖 right）
 		if (deleteBtn) deleteBtn.before(btn);
-		else row.appendChild(btn);
+		else {
+			btn.classList.add("sa-solo");
+			row.appendChild(btn);
+		}
 	}
 }
 
