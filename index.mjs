@@ -79,7 +79,7 @@ export function loadState(file) {
 		const parsed = JSON.parse(readFileSync(file, "utf8"));
 		if (!parsed || !Array.isArray(parsed.records)) return emptyState();
 		const valid = parsed.records.filter((r) => r && typeof r.path === "string" && r.path);
-		return { version: 1, records: dedupeRecords(valid) };
+		return { version: 1, records: dedupeRecords(valid).slice(0, MAX_RECORDS) };
 	} catch {
 		return emptyState();
 	}
@@ -347,6 +347,11 @@ export default {
 			}
 			try {
 				await host.fs.removePath(resolve(record.path));
+				// 复核：宿主 removePath 可能静默 no-op，别把「没删掉」记成已删除
+				if (existsSync(record.path)) {
+					markDeleted(state, record.id, { error: "删除后文件仍存在，请检查目录权限" });
+					return { ok: false, error: "删除后文件仍存在" };
+				}
 				markDeleted(state, record.id);
 				return { ok: true };
 			} catch (err) {
@@ -363,9 +368,14 @@ export default {
 		/** 是否已经拿过该会话目录的授权（有就悄悄删，绝不为了删去弹授权框）。 */
 		const hasGrant = (absFile) => {
 			try {
-				const dir = normalizePathKey(dirname(resolve(absFile)));
+				const dir = normalizePathKey(dirname(resolve(absFile))).replace(/\/+$/, "");
 				const dirs = host.fs?.authorizedDirs?.() ?? [];
-				return dirs.some((d) => normalizePathKey(d) === dir);
+				// 授权可能是祖先目录（宿主整目录授权），所以用包含关系判断
+				return dirs.some((d) => {
+					const grant = normalizePathKey(d).replace(/\/+$/, "");
+					if (!grant) return false;
+					return dir === grant || dir.startsWith(`${grant}/`);
+				});
 			} catch {
 				return false;
 			}
@@ -389,6 +399,7 @@ export default {
 					// 没授权就不删，也不弹窗：留给你在面板里手动点。
 					markExpired(state, record.id, { note: "已到期，但未获得会话目录访问授权，未删除" });
 					expired += 1;
+					host.log("info", `归档到期但目录未授权，未删除：${record.path}`);
 					continue;
 				}
 				const result = await deleteRecordFile(record);
@@ -421,7 +432,11 @@ export default {
 		 * 标题可疑时读 .jsonl 里的真名：session_info（宿主改名）优先，其次第一条用户消息。
 		 * 只读头 32KB + 尾 128KB —— 会话文件可能几百 MB，整读会卡住宿主事件循环。
 		 */
-		const TITLE_NOISE = /^当前|另一处|运行中|\d{1,2}:\d{2}\s*$/;
+		// 只认「明显是行渲染噪音」的形状：
+		//   当前<时间> / 纯时间 / <标题>另一处<时间> / <标题>运行中<时间>
+		// 不要裸匹配「运行中」或任意尾部时间 —— 那是合法标题的一部分。
+		const TITLE_NOISE =
+			/^当前|^\d{1,2}:\d{2}\s*$|^(?:另一处|运行中|别处)\s*$|(?:另一处|运行中|别处)\s*\d{1,2}:\d{2}\s*$/;
 		const resolveTitle = (absPath, fallback, current) => {
 			const label = String(fallback ?? "").trim();
 			const suspicious = current === true || TITLE_NOISE.test(label);
@@ -515,6 +530,14 @@ export default {
 			const record = findRecord(state, String(req.body?.id ?? ""));
 			if (!record || (record.status !== "archived" && record.status !== "expired")) {
 				sendJson(res, 404, { ok: false, error: "找不到这条归档记录" });
+				return;
+			}
+			// 先做边界校验，再决定要不要弹授权框：越界记录不该骚扰用户
+			if (!isSessionFile(record.path) || !isInsideSessionsRoot(record.path)) {
+				markDeleted(state, record.id, { error: "路径不在会话目录内，拒绝删除" });
+				persist();
+				publish();
+				sendJson(res, 400, { ok: false, error: "路径不在会话目录内，拒绝删除" });
 				return;
 			}
 			await requestAccess(record.path, "立即删除已归档的会话文件");

@@ -21,12 +21,6 @@ const ICON_ARCHIVE = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none
 const ICON_RESTORE = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg>`;
 const ICON_TRASH = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>`;
 
-const RETENTION_OPTIONS = [
-	{ days: 1, label: "1 天后提醒", short: "1 天" },
-	{ days: 7, label: "7 天后提醒", short: "7 天" },
-	{ days: 30, label: "30 天后提醒", short: "30 天" },
-	{ days: 0, label: "永不提醒", short: "永不" },
-];
 
 const state = {
 	records: [],
@@ -169,7 +163,6 @@ function ensureStyles() {
 .sa-search::placeholder{color:inherit;opacity:.42}
 .sa-search:hover{border-color:color-mix(in srgb,var(--accent,#5b8cff) 45%,var(--border,#3a3d45))}
 .sa-search:focus{border-color:var(--accent,#5b8cff);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#5b8cff) 22%,transparent)}
-.sa-panel .sa-count{opacity:.55;font-size:11px;flex:0 0 auto}
 .sa-list{flex:1;overflow:auto;padding:2px 5px 6px}
 .sa-group{margin-top:6px}
 .sa-group+.sa-group{border-top:1px solid var(--border,#3a3d45)}
@@ -283,7 +276,10 @@ function makeArchiveButton(row, path) {
 	btn.addEventListener("click", (event) => {
 		event.preventDefault();
 		event.stopPropagation();
-		void archiveNow(path, rowLabel(row), rowIsActive(row), rowLabelIsNoisy(row));
+		// 宿主可能把同一个 .lp-row 元素复用给别的会话（虚拟列表 / 局部 patch），
+		// 所以路径一律在点击时重算，不能用注入时闭包捕获的旧值。
+		const livePath = rowSessionPath(row) || path;
+		void archiveNow(livePath, rowLabel(row), rowIsActive(row), rowLabelIsNoisy(row));
 	});
 	return btn;
 }
@@ -412,7 +408,6 @@ function projectLabel(folder) {
 function renderPanel() {
 	if (!panelEl) return;
 	const list = panelEl.querySelector(".sa-list");
-	const count = panelEl.querySelector(".sa-count");
 	if (!list) return;
 	const query = (panelEl.querySelector(".sa-search")?.value ?? "").trim().toLowerCase();
 	const records = state.records.filter((r) =>
@@ -420,7 +415,6 @@ function renderPanel() {
 		String(r.title ?? "").toLowerCase().includes(query) ||
 		String(r.path ?? "").toLowerCase().includes(query),
 	);
-	if (count) count.textContent = query ? `${records.length}/${state.records.length} 条` : `${state.records.length} 条`;
 	list.innerHTML = "";
 	if (records.length === 0) {
 		list.innerHTML = `<div class="sa-empty">${query ? "没有匹配的归档" : "还没有归档的对话。\n左栏会话行 hover 点 🗄 即可归档。"}</div>`;
@@ -602,13 +596,10 @@ function openPanel() {
 		<header>
 			<h3>归档</h3>
 			<input type="search" class="sa-search" placeholder="搜索标题 / 路径…" />
-			<span class="sa-count"></span>
 			<button type="button" class="sa-close" title="关闭">✕</button>
 		</header>
 		<div class="sa-list"></div>`;
 	panel.querySelector(".sa-close")?.addEventListener("click", closePanel);
-	const count = panel.querySelector(".sa-count");
-	if (count) count.style.display = "none";
 	const search = panel.querySelector(".sa-search");
 	search?.addEventListener("input", () => renderPanel());
 	search?.addEventListener("keydown", (event) => {
@@ -740,11 +731,6 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
 	return escapeHtml(value);
-}
-
-function shortPath(path) {
-	const text = String(path ?? "");
-	return text.length <= 72 ? text : `…${text.slice(-70)}`;
 }
 
 /* ---------------------------------------------------------------- 启动 */
