@@ -1,8 +1,19 @@
 # 宿主补丁：置顶会话跨项目串台
 
 > **状态**：上游已修复 —— [PR #868](https://github.com/xing-shuyin/pi-web-ui/pull/868) 已合并进 main（`2f437b6a`），**但尚未发版**（截至 `v0.119.0` 仍未包含）。
-> 因此 **0.119.x 期间本机仍需保留 `dist` 补丁**；升级到含该提交的版本后再 `--revert`。
-> **性质**：这是 **宿主（pi-web-ui）的 bug**，与本仓库的 `session-archive` 插件无关。
+> **性质**：这是 **宿主（pi-web-ui）的 bug**，与本仓库的 `session-archive` 插件无关 ——
+> 装插件只需要 `pi-web-ui install FlameFires/pi-web-ui-session-archive --name session-archive`，
+> 跟下面这个宿主热补丁**没有关系**。
+>
+> **收尾方式（重要）**：升级宿主会整体替换 `dist/`，补丁**自动消失**，不需要手动 `--revert`：
+>
+> ```bash
+> npm i -g pi-web-ui@latest                       # 装到含 2f437b6a 的版本
+> node scripts/patch-host-pin.mjs --check         # 应显示「未打补丁」
+> # 重启 pi-web-ui，验证：在项目 A 钉住项目 B 的会话 → 不该出现在 A
+> ```
+>
+> `--revert` 只用于「**不升级**但想撤掉补丁」的场景（撤了 bug 会回来，不建议）。
 > **脚本**：`scripts/patch-host-pin.mjs`（幂等，可 `--check` / `--revert`）。
 
 ## 症状
