@@ -11,6 +11,7 @@ import {
 	isSessionFile,
 	loadState,
 	markDeleted,
+	markExpired,
 	normalizeDays,
 	publicRecords,
 	purgeStaleRecords,
@@ -96,16 +97,43 @@ describe("归档记录生命周期", () => {
 		assert.equal(state.records[0].status, "deleted");
 	});
 
+	it("到期标记为 expired：不改文件、仍算归档中（行继续隐藏）", () => {
+		const state = emptyState();
+		const now = Date.now();
+		const { record } = archiveRecord(state, { path: FILE, title: "A", days: 1, now });
+		markExpired(state, record.id, { now: now + 2 * DAY_MS, note: "已到期，等待你确认删除" });
+		assert.equal(state.records[0].status, "expired");
+		assert.equal(state.records[0].lastError, "已到期，等待你确认删除");
+		assert.equal(publicRecords(state).length, 1, "expired 仍要在面板与隐藏名单里");
+		assert.equal(dueForDeletion(state, now + 3 * DAY_MS).length, 0, "已标记的不再重复触发");
+	});
+
+	it("expired 还能改期回 archived，也能恢复成 restored", () => {
+		const state = emptyState();
+		const record = archiveRecord(state, { path: FILE, title: "A", days: 1 }).record;
+		markExpired(state, record.id);
+		const renewed = setRetention(state, record.id, 7);
+		assert.equal(renewed.status, "archived");
+		assert.equal(renewed.lastError, null);
+		assert.ok(renewed.expiresAt);
+		markExpired(state, record.id);
+		restoreRecord(state, record.id);
+		assert.equal(state.records[0].status, "restored");
+		assert.equal(publicRecords(state).length, 0);
+	});
+
 	it("陈旧记录会被清理，归档中的不清理", () => {
 		const state = emptyState();
 		const now = Date.now();
 		const archived = archiveRecord(state, { path: FILE, title: "A", days: 0, now }).record;
 		const gone = archiveRecord(state, { path: `${FILE}.b`, title: "B", days: 1, now }).record;
 		restoreRecord(state, gone.id, now);
-		assert.equal(purgeStaleRecords(state, now + 31 * DAY_MS), 1);
+		const expiring = archiveRecord(state, { path: `${FILE}.c`, title: "C", days: 1, now }).record;
+		markExpired(state, expiring.id, { now });
+		assert.equal(purgeStaleRecords(state, now + 31 * DAY_MS), 1, "expired 不该被自动清掉");
 		assert.deepEqual(
 			state.records.map((r) => r.id),
-			[archived.id],
+			[expiring.id, archived.id],
 		);
 	});
 });

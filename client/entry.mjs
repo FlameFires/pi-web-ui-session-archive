@@ -69,7 +69,11 @@ function sessionIdOf(path) {
 	return match ? match[1].toLowerCase() : "";
 }
 
-function formatDay(iso) {
+function formatDay(iso, status) {
+	if (status === "expired") {
+		const at = iso ? new Date(iso).toLocaleString() : "";
+		return `已到期（${at}）· 文件未删除`;
+	}
 	if (!iso) return "永不到期";
 	const t = Date.parse(iso);
 	if (!Number.isFinite(t)) return "永不到期";
@@ -365,7 +369,7 @@ function renderPanel() {
 		item.dataset.saUi = "1";
 		item.innerHTML = `
 			<div class="sa-item-title" title="${escapeAttr(record.title || record.path)}">${escapeHtml(record.title || "(未命名对话)")}</div>
-			<div class="sa-item-meta">${escapeHtml(formatDay(record.expiresAt))}</div>
+			<div class="sa-item-meta">${escapeHtml(formatDay(record.expiresAt, record.status))}</div>
 			<div class="sa-item-meta" title="${escapeAttr(record.path)}">${escapeHtml(shortPath(record.path))}</div>
 			${record.lastError ? `<div class="sa-item-meta" style="color:#ff8080">${escapeHtml(record.lastError)}</div>` : ""}
 			<div class="sa-item-row">
@@ -376,7 +380,7 @@ function renderPanel() {
 					).join("")}
 				</select>
 				<button type="button" class="sa-btn" data-role="restore">恢复</button>
-				<button type="button" class="sa-btn danger" data-role="purge">立即删除</button>
+				<button type="button" class="sa-btn danger" data-role="purge">删除文件</button>
 			</div>`;
 		item.querySelectorAll("button").forEach((button) => {
 			button.addEventListener("click", async () => {
@@ -392,7 +396,7 @@ function renderPanel() {
 						scan();
 						toast(`已恢复「${record.title || record.path}」，侧边栏刷新后可见`);
 					} else if (role === "purge") {
-						if (!window.confirm(`立即删除会话文件？此操作不可恢复。\n\n${record.path}`)) return;
+						if (!window.confirm(`真的删除这个会话文件？不可恢复。\n\n${record.path}\n\n（会先向下面这个目录申请一次访问授权）`)) return;
 						const result = await request("/purge", {
 							method: "POST",
 							body: JSON.stringify({ id: record.id }),

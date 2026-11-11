@@ -2,15 +2,20 @@
 	"id": "session-archive",
 	"name": "会话归档",
 	"nameEn": "Session Archive",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"apiVersion": 2,
 	"icon": "🗄️",
 	"iconSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"4\" rx=\"1\"/><path d=\"M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8\"/><path d=\"M9.5 12.5h5\"/></svg>",
-	"description": "左栏会话行里的归档按钮：点一下把对话从侧边栏收起来（不删文件、不打断），可设 1/7/30 天或永不到期，到期自动删除对应会话文件。附归档管理面板，可恢复、改期、立即清理。",
-	"descriptionEn": "An archive button inside each sidebar conversation row: tuck a chat away without deleting it, pick a 1/7/30-day or never expiry, and let the plugin delete the underlying session file when it expires. Ships a management panel to restore, re-schedule or purge archived chats.",
+	"description": "左栏会话行里的归档按钮：点一下把对话从侧边栏收起来，**不删任何文件、不申请目录授权**。可设 1/7/30 天或永不；到期默认只标记（需要你点“删除”才真删）。附归档管理面板：恢复 / 改期 / 手动删除。",
+	"descriptionEn": "Archive button inside each sidebar conversation row: hide a chat without deleting anything or requesting directory access. Optional 1/7/30-day or never expiry; on expiry it only marks the entry, and the file is deleted only when you explicitly confirm. Ships a management panel to restore, re-schedule or delete.",
 	"view": false,
 	"preload": true,
-	"permissions": ["ui", "dom", "fs", "http"],
+	"permissions": [
+		"ui",
+		"dom",
+		"fs",
+		"http"
+	],
 	"settings": [
 		{
 			"key": "defaultDays",
@@ -28,6 +33,14 @@
 			"label": "当前打开的对话也显示归档按钮",
 			"labelEn": "Show the archive button on the active row",
 			"default": false
+		},
+		{
+			"key": "autoDeleteOnExpiry",
+			"type": "boolean",
+			"label": "到期自动删除会话文件",
+			"labelEn": "Delete the session file automatically on expiry",
+			"default": false,
+			"hint": "默认关闭：到期只标记“已到期”，文件不动。开启后也只在已授权会话目录时才删，不会弹授权框。"
 		}
 	],
 	"ui": {

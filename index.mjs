@@ -150,10 +150,21 @@ export function restoreRecord(state, id, now = Date.now()) {
 
 export function setRetention(state, id, days, now = Date.now()) {
 	const record = findRecord(state, id);
-	if (!record || record.status !== "archived") return null;
+	if (!record || (record.status !== "archived" && record.status !== "expired")) return null;
+	record.status = "archived";
 	record.days = normalizeDays(days, DEFAULT_DAYS);
 	record.expiresAt = computeExpiresAt(now, record.days);
 	record.updatedAt = new Date(now).toISOString();
+	record.lastError = null;
+	return record;
+}
+
+export function markExpired(state, id, { now = Date.now(), note = null } = {}) {
+	const record = findRecord(state, id);
+	if (!record) return null;
+	record.status = "expired";
+	record.updatedAt = new Date(now).toISOString();
+	record.lastError = note ? String(note).slice(0, 300) : null;
 	return record;
 }
 
@@ -173,7 +184,7 @@ export function markDeleted(state, id, { now = Date.now(), error = null } = {}) 
 	return record;
 }
 
-/** 到期该删的记录（expiresAt 已过、仍在 archived 状态）。 */
+/** 刚到期、还没被标记的记录（expiresAt 已过、仍在 archived 状态）。 */
 export function dueForDeletion(state, now = Date.now()) {
 	return state.records.filter(
 		(r) => r.status === "archived" && typeof r.expiresAt === "string" && Date.parse(r.expiresAt) <= now,
@@ -185,7 +196,7 @@ export function purgeStaleRecords(state, now = Date.now()) {
 	const cutoff = now - RECORD_PURGE_DAYS * DAY_MS;
 	const before = state.records.length;
 	state.records = state.records.filter((r) => {
-		if (r.status === "archived") return true;
+		if (r.status === "archived" || r.status === "expired") return true;
 		const stamp = Date.parse(r.updatedAt ?? r.archivedAt ?? "");
 		if (!Number.isFinite(stamp)) return false;
 		return stamp >= cutoff;
@@ -196,13 +207,14 @@ export function purgeStaleRecords(state, now = Date.now()) {
 /** 给浏览器的记录视图（不带内部 key 这类噪音）。 */
 export function publicRecords(state) {
 	return state.records
-		.filter((r) => r.status === "archived")
+		.filter((r) => r.status === "archived" || r.status === "expired")
 		.map((r) => ({
 			id: r.id,
 			path: r.path,
 			title: r.title,
 			extension: r.extension,
 			days: r.days,
+			status: r.status,
 			archivedAt: r.archivedAt,
 			expiresAt: r.expiresAt,
 			lastError: r.lastError ?? null,
@@ -231,6 +243,7 @@ export default {
 			return {
 				defaultDays: normalizeDays(values.defaultDays, DEFAULT_DAYS),
 				showActiveRowButton: values.showActiveRowButton === true,
+				autoDeleteOnExpiry: values.autoDeleteOnExpiry === true,
 			};
 		};
 
@@ -280,19 +293,40 @@ export default {
 			}
 		};
 
+		/** 是否已经拿过该会话目录的授权（有就悄悄删，绝不为了删去弹授权框）。 */
+		const hasGrant = (absFile) => {
+			try {
+				const dir = normalizePathKey(dirname(resolve(absFile)));
+				const dirs = host.fs?.authorizedDirs?.() ?? [];
+				return dirs.some((d) => normalizePathKey(d) === dir);
+			} catch {
+				return false;
+			}
+		};
+
 		const sweep = async () => {
 			const due = dueForDeletion(state);
+			const auto = settings().autoDeleteOnExpiry;
 			let changed = false;
+			let deleted = 0;
+			let expired = 0;
 			for (const record of due) {
-				const granted = await requestAccess(record.path, "会话归档到期，需要删除对应的会话文件");
-				if (!granted) {
-					markDeleted(state, record.id, { error: "未获得会话目录访问授权，跳过本次删除" });
-					changed = true;
+				changed = true;
+				if (!auto) {
+					// 默认行为：到期只标记，不删文件，不动任何目录授权。
+					markExpired(state, record.id, { note: "已到期，等待你确认删除" });
+					expired += 1;
+					continue;
+				}
+				if (!hasGrant(record.path)) {
+					// 没授权就不删，也不弹窗：留给你在面板里手动点。
+					markExpired(state, record.id, { note: "已到期，但未获得会话目录访问授权，未删除" });
+					expired += 1;
 					continue;
 				}
 				const result = await deleteRecordFile(record);
-				changed = true;
 				if (result.ok) {
+					deleted += 1;
 					host.notify?.("info", `🗄️ 归档到期，已删除会话文件：${record.title || record.path}`);
 				} else {
 					host.log("warn", `归档到期删除失败：${record.path}`, result.error);
@@ -303,7 +337,7 @@ export default {
 				persist();
 				publish();
 			}
-			return { deleted: due.length };
+			return { deleted, expired };
 		};
 
 		host.route("GET", "/state", (_req, res) => {
@@ -319,8 +353,7 @@ export default {
 			}
 			const defaults = settings();
 			const days = normalizeDays(body.days ?? defaults.defaultDays, defaults.defaultDays);
-			// 浏览器里此刻正有人操作 —— 现在要授权，别等到期那一刻才弹窗。
-			await requestAccess(rawPath, "会话归档需要访问会话目录，以便到期后删除对应会话文件");
+			// 归档本身只写记录 + 隐藏行，不碰文件、不申请任何目录授权。
 			const { record, created } = archiveRecord(state, {
 				path: rawPath,
 				title: body.title,
@@ -356,7 +389,7 @@ export default {
 
 		host.route("POST", "/purge", async (req, res) => {
 			const record = findRecord(state, String(req.body?.id ?? ""));
-			if (!record || record.status !== "archived") {
+			if (!record || (record.status !== "archived" && record.status !== "expired")) {
 				sendJson(res, 404, { ok: false, error: "找不到这条归档记录" });
 				return;
 			}

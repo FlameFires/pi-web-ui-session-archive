@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -13,11 +13,12 @@ import plugin from "../index.mjs";
 function createHost(dataDir) {
 	const routes = new Map();
 	const schedules = [];
+	const hostRecord = { calls: { access: 0 } };
 	return {
 		dataDir,
 		dir: dataDir,
 		cwd: dataDir,
-		getSettings: () => ({ defaultDays: 7, showActiveRowButton: false }),
+		getSettings: () => ({ defaultDays: 7, showActiveRowButton: false, autoDeleteOnExpiry: false }),
 		onSettingsChanged: () => () => {},
 		route(method, path, handler) {
 			routes.set(`${method.toUpperCase()} ${path}`, handler);
@@ -34,7 +35,10 @@ function createHost(dataDir) {
 		notify() {},
 		broadcast() {},
 		fs: {
-			requestAccess: async () => true,
+			requestAccess: async () => {
+				hostRecord.calls.access += 1;
+				return true;
+			},
 			authorizedDirs: () => [],
 			removePath: async (abs) => {
 				rmSync(abs, { force: true });
@@ -42,6 +46,7 @@ function createHost(dataDir) {
 		},
 		__routes: routes,
 		__schedules: schedules,
+		__calls: hostRecord.calls,
 	};
 }
 
@@ -117,6 +122,7 @@ describe("activate 路由", () => {
 			assert.deepEqual((await call(host, "GET /state")).body.records, []);
 
 			assert.ok(host.__schedules.some((s) => s.spec === "*/10 * * * *"));
+			assert.equal(host.__calls.access, 1, "只有 /purge 会申请授权，归档本身不申请");
 		} finally {
 			dispose?.();
 		}
@@ -138,6 +144,42 @@ describe("activate 路由", () => {
 				days: 7,
 			});
 			assert.equal(notJsonl.status, 400);
+		} finally {
+			dispose?.();
+		}
+	});
+
+	it("归档不申请目录授权；到期 sweep 只标记、不删文件", async () => {
+		const host = createHost(join(root, "data5"));
+		const file = join(cwdDir, "2026-01-04_s4.jsonl");
+		writeFileSync(file, '{"type":"session"}\n');
+		const dispose = plugin.activate(host);
+		try {
+			const archived = await call(host, "POST /archive", { path: file, title: "D", days: 1 });
+			assert.equal(archived.status, 200);
+			assert.equal(host.__calls.access, 0, "归档不该弹目录授权");
+
+			// 把到期时间挪到过去，模拟到期
+			const statePath = join(root, "data5", "session-archive", "state.json");
+			const state = JSON.parse(readFileSync(statePath, "utf8"));
+			state.records[0].expiresAt = new Date(Date.now() - 1000).toISOString();
+			writeFileSync(statePath, JSON.stringify(state));
+
+			// 重新激活以载入改过的状态
+			dispose?.();
+			const host2 = createHost(join(root, "data5"));
+			const dispose2 = plugin.activate(host2);
+			try {
+				const swept = await call(host2, "POST /sweep");
+				assert.equal(swept.status, 200);
+				assert.equal(swept.body.expired, 1);
+				assert.equal(swept.body.deleted, 0);
+				assert.equal(existsSync(file), true, "默认不删文件");
+				assert.equal(swept.body.records[0].status, "expired");
+				assert.equal(host2.__calls.access, 0, "sweep 也不该弹授权");
+			} finally {
+				dispose2?.();
+			}
 		} finally {
 			dispose?.();
 		}
