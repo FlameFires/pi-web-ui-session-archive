@@ -42,12 +42,14 @@ pi-web-ui 社区插件。左栏每个会话行多一个 🗄 图标：点一下�
 
 ## 安装 / 开发
 
-```sh
-# 从本地目录装（开发调试）
-pi-web-ui install /path/to/Mkmo --name session-archive
+仓库名遵循社区插件命名：**`pi-web-ui-<插件 id>`**（对齐 `engharat/pi-web-ui-md-chat` → `md-chat`）。
 
-# 从 GitHub 装
-pi-web-ui install <owner>/<repo> --name session-archive
+```sh
+# 从 GitHub 装（推荐）
+pi-web-ui install FlameFires/pi-web-ui-session-archive --name session-archive
+
+# 从本地目录装（开发调试）
+pi-web-ui install E:/Mkmo/pi-web-ui-session-archive --name session-archive
 ```
 
 更新插件后要**重启 pi-web-ui**（服务端模块有缓存），再刷新浏览器。装好后重启/刷新，然后：
