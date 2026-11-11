@@ -190,6 +190,21 @@ function ensureStyles() {
 .sa-iact.danger:hover{color:var(--red,#ff6b6b);background:color-mix(in srgb,var(--red,#ff6b6b) 18%,transparent)}
 .sa-iact:disabled{opacity:.35;cursor:not-allowed}
 .sa-iact svg{pointer-events:none}
+.sa-dialog-backdrop{position:fixed;inset:0;z-index:1150;background:rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;animation:saFade .12s ease-out}
+@keyframes saFade{from{opacity:0}to{opacity:1}}
+@keyframes saPop{from{transform:translateY(4px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.sa-dialog{background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:10px;box-shadow:0 18px 48px rgba(0,0,0,.5);width:min(360px,calc(100vw - 32px));padding:14px 16px;font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;animation:saPop .14s ease-out}
+.sa-dialog h4{margin:0 0 6px;font-size:13.5px;font-weight:600}
+.sa-dialog p{margin:0;opacity:.75;font-size:12px;word-break:break-word}
+.sa-dialog code{display:block;margin:8px 0 0;padding:6px 8px;border-radius:6px;background:color-mix(in srgb,var(--text,#e8e8ea) 8%,transparent);font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;opacity:.85;max-height:96px;overflow:auto}
+.sa-dialog-note{margin:8px 0 0;font-size:11.5px;opacity:.6}
+.sa-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.sa-dialog-btn{border-radius:6px;padding:4px 14px;font-size:12px;cursor:pointer;border:1px solid var(--border,#3a3d45);background:transparent;color:inherit;transition:background .12s,border-color .12s,color .12s}
+.sa-dialog-btn:hover{background:color-mix(in srgb,var(--text,#e8e8ea) 12%,transparent)}
+.sa-dialog-btn.primary{border-color:var(--accent,#5b8cff);color:var(--accent,#5b8cff)}
+.sa-dialog-btn.primary:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 18%,transparent)}
+.sa-dialog-btn.danger{border-color:color-mix(in srgb,var(--red,#ff6b6b) 55%,transparent);color:var(--red,#ff6b6b)}
+.sa-dialog-btn.danger:hover{background:color-mix(in srgb,var(--red,#ff6b6b) 20%,transparent)}
 .sa-empty{padding:18px 10px;text-align:center;opacity:.6}
 @keyframes saFlash{0%,100%{box-shadow:none;background:transparent}50%{box-shadow:0 0 0 2px var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 18%,transparent)}}
 .lp-row.sa-flash{animation:saFlash .9s ease-in-out 3;border-radius:8px}
@@ -341,6 +356,7 @@ function scheduleScan() {
 /* ---------------------------------------------------------------- 管理面板 */
 
 function closePanel() {
+	closeConfirm(false);
 	panelEl?.remove();
 	panelEl = null;
 	state.panelOpen = false;
@@ -446,7 +462,15 @@ function renderPanelItem(record) {
 					flashRestoredRow(record);
 					toast(`已恢复「${record.title || record.path}」`);
 				} else if (role === "purge") {
-					if (!window.confirm(`真的删除这个会话文件？不可恢复。\n\n${record.path}\n\n（会先向该目录申请一次访问授权）`)) {
+					const ok = await saConfirm({
+						title: "删除会话文件？",
+						message: "此操作不可恢复，会直接删掉这个 .jsonl 文件。",
+						detail: record.path,
+						note: "会先向该目录申请一次访问授权。",
+						confirmLabel: "删除",
+						danger: true,
+					});
+					if (!ok) {
 						button.disabled = false;
 						return;
 					}
@@ -520,6 +544,69 @@ function openPanel() {
 }
 
 /* ---------------------------------------------------------------- 提示条 */
+
+let confirmEl = null;
+
+/** 自绘确认框，替代 window.confirm（原生弹窗没法跟主题走）。 */
+function saConfirm({ title, message, detail, note, confirmLabel = "确定", danger = false }) {
+	return new Promise((resolve) => {
+		closeConfirm(false);
+		const backdrop = document.createElement("div");
+		backdrop.className = "sa-dialog-backdrop";
+		backdrop.dataset.saUi = "1";
+		const dialog = document.createElement("div");
+		dialog.className = "sa-dialog";
+		dialog.setAttribute("role", "dialog");
+		dialog.setAttribute("aria-modal", "true");
+		dialog.innerHTML = `
+			<h4>${escapeHtml(title)}</h4>
+			${message ? `<p>${escapeHtml(message)}</p>` : ""}
+			${detail ? `<code>${escapeHtml(detail)}</code>` : ""}
+			${note ? `<div class="sa-dialog-note">${escapeHtml(note)}</div>` : ""}
+			<div class="sa-dialog-actions">
+				<button type="button" class="sa-dialog-btn" data-act="cancel">取消</button>
+				<button type="button" class="sa-dialog-btn ${danger ? "danger" : "primary"}" data-act="ok">${escapeHtml(confirmLabel)}</button>
+			</div>`;
+		const finish = (value) => {
+			document.removeEventListener("keydown", onKey, true);
+			backdrop.remove();
+			confirmEl = null;
+			resolve(value);
+		};
+		const onKey = (event) => {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				event.stopPropagation();
+				finish(false);
+			} else if (event.key === "Enter") {
+				event.preventDefault();
+				event.stopPropagation();
+				finish(true);
+			}
+		};
+		backdrop.addEventListener("click", (event) => {
+			if (event.target === backdrop) finish(false);
+		});
+		dialog.addEventListener("click", (event) => {
+			const act = event.target?.closest?.("button")?.dataset?.act;
+			if (act === "ok") finish(true);
+			else if (act === "cancel") finish(false);
+		});
+		document.addEventListener("keydown", onKey, true);
+		backdrop.appendChild(dialog);
+		document.body.appendChild(backdrop);
+		confirmEl = { backdrop, finish };
+		dialog.querySelector('[data-act="ok"]')?.focus();
+	});
+}
+
+/** 关掉当前确认框（面板失焦/被强制关闭时用）。 */
+function closeConfirm(value = false) {
+	const current = confirmEl;
+	if (!current) return;
+	confirmEl = null;
+	current.finish(value);
+}
 
 function toast(message, recordId) {
 	ensureStyles();
@@ -631,6 +718,7 @@ function init() {
 
 	const onEscape = (event) => {
 		if (event.key !== "Escape") return;
+		if (confirmEl) return; // 确认框自己处理 Esc（捕获阶段已注册）
 		if (panelEl) {
 			event.stopPropagation();
 			closePanel();
@@ -668,6 +756,7 @@ function dispose() {
 	scanTimer = null;
 	if (pollTimer) window.clearInterval(pollTimer);
 	pollTimer = null;
+	closeConfirm(false);
 	closePanel();
 	toastEl?.remove();
 	toastEl = null;
