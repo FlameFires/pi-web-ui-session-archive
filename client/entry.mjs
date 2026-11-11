@@ -18,6 +18,9 @@ const RESCAN_MS = 1_500;
 
 const ICON_ARCHIVE = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>`;
 
+const ICON_RESTORE = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg>`;
+const ICON_TRASH = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>`;
+
 const RETENTION_OPTIONS = [
 	{ days: 1, label: "1 天后提醒", short: "1 天" },
 	{ days: 7, label: "7 天后提醒", short: "7 天" },
@@ -176,26 +179,17 @@ function ensureStyles() {
 .sa-group-h .sa-group-count{flex:0 0 auto;margin-left:auto;opacity:.8;font-variant-numeric:tabular-nums}
 .sa-item{border-radius:8px;padding:5px 6px 5px 7px;margin:1px 0}
 .sa-item:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 8%,transparent)}
-.sa-item-title{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sa-item-meta{opacity:.58;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.35}
 .sa-item-meta.err{color:#ff8080;opacity:1}
-.sa-item-row{display:flex;align-items:center;gap:4px;margin-top:3px}
-.sa-dd{position:relative;flex:1;min-width:0}
-.sa-dd-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:4px;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1.5;transition:border-color .12s,background .12s}
-.sa-dd-btn:hover{border-color:color-mix(in srgb,var(--accent,#5b8cff) 45%,var(--border,#3a3d45))}
-.sa-dd.open .sa-dd-btn{border-color:var(--accent,#5b8cff)}
-.sa-dd-caret{opacity:.6;font-size:9px;transition:transform .12s}
-.sa-dd.open .sa-dd-caret{transform:rotate(180deg)}
-.sa-dd-menu{position:fixed;z-index:1100;background:var(--bg-elev,#1f2127);border:1px solid var(--border,#3a3d45);border-radius:6px;box-shadow:0 8px 22px rgba(0,0,0,.4);padding:3px;font:12px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text,#e8e8ea)}
-.sa-dd-menu[hidden]{display:none}
-.sa-dd-item{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;border-radius:4px;padding:3px 7px;font-size:11.5px;cursor:pointer}
-.sa-dd-item:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 16%,transparent)}
-.sa-dd-item[data-active="1"]{color:var(--accent,#5b8cff);font-weight:600}
-.sa-mini{border:1px solid var(--border,#3a3d45);background:transparent;color:inherit;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:11px;white-space:nowrap;line-height:1.5;transition:border-color .12s,color .12s}
-.sa-mini:hover{border-color:var(--accent,#5b8cff);color:var(--accent,#5b8cff)}
-.sa-mini.danger{color:#ff8080;border-color:#ff808055}
-.sa-mini.danger:hover{border-color:#ff8080}
-.sa-mini:disabled{opacity:.45;cursor:not-allowed}
+.sa-item-head{display:flex;align-items:center;gap:4px;min-width:0}
+.sa-item-title{flex:1;min-width:0;font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-item-actions{flex:0 0 auto;display:none;align-items:center;gap:1px}
+.sa-item:hover .sa-item-actions,.sa-item:focus-within .sa-item-actions{display:inline-flex}
+.sa-iact{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit;opacity:.6;cursor:pointer;border-radius:4px;padding:0;transition:opacity .12s,background .12s,color .12s}
+.sa-iact:hover{opacity:1;background:color-mix(in srgb,var(--text,#e8e8ea) 14%,transparent)}
+.sa-iact.danger:hover{color:var(--red,#ff6b6b);background:color-mix(in srgb,var(--red,#ff6b6b) 18%,transparent)}
+.sa-iact:disabled{opacity:.35;cursor:not-allowed}
+.sa-iact svg{pointer-events:none}
 .sa-empty{padding:18px 10px;text-align:center;opacity:.6}
 @keyframes saFlash{0%,100%{box-shadow:none;background:transparent}50%{box-shadow:0 0 0 2px var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 18%,transparent)}}
 .lp-row.sa-flash{animation:saFlash .9s ease-in-out 3;border-radius:8px}
@@ -347,7 +341,6 @@ function scheduleScan() {
 /* ---------------------------------------------------------------- 管理面板 */
 
 function closePanel() {
-	closeAllDropdowns();
 	panelEl?.remove();
 	panelEl = null;
 	state.panelOpen = false;
@@ -377,8 +370,6 @@ function projectLabel(folder) {
 
 function renderPanel() {
 	if (!panelEl) return;
-	// 重渲染会重建条目，浮层菜单必须一起收掉，否则会留下孤儿节点
-	closeAllDropdowns();
 	const list = panelEl.querySelector(".sa-list");
 	const count = panelEl.querySelector(".sa-count");
 	if (!list) return;
@@ -430,27 +421,18 @@ function renderPanelItem(record) {
 	item.dataset.saPath = record.path;
 	const expired = record.status === "expired";
 	item.innerHTML = `
-		<div class="sa-item-title" title="${escapeAttr(record.title || record.path)}">${escapeHtml(record.title || "(未命名对话)")}</div>
+		<div class="sa-item-head">
+			<span class="sa-item-title" title="${escapeAttr(record.title || record.path)}">${escapeHtml(record.title || "(未命名对话)")}</span>
+			<span class="sa-item-actions">
+				<button type="button" class="sa-iact" data-role="restore" title="恢复${expired ? "" : "（行还在隐藏中，恢复后闪烁定位）"}">${ICON_RESTORE}</button>
+				<button type="button" class="sa-iact danger" data-role="purge" title="删除会话文件（不可恢复）">${ICON_TRASH}</button>
+			</span>
+		</div>
 		<div class="sa-item-meta">${escapeHtml(formatDay(record.expiresAt, record.status))}</div>
-		${record.lastError ? `<div class="sa-item-meta err">${escapeHtml(record.lastError)}</div>` : ""}
-		<div class="sa-item-row">
-			<div class="sa-dd" data-role="retention" title="到期时间">
-				<button type="button" class="sa-dd-btn">
-					<span>${escapeHtml(RETENTION_OPTIONS.find((o) => o.days === Number(record.days))?.label ?? `${record.days} 天后提醒`)}</span>
-					<span class="sa-dd-caret">▾</span>
-				</button>
-				<div class="sa-dd-menu" hidden>
-					${RETENTION_OPTIONS.map(
-						(o) =>
-							`<button type="button" class="sa-dd-item" data-days="${o.days}"${Number(record.days) === o.days ? ' data-active="1"' : ""}>${o.label}</button>`,
-					).join("")}
-				</div>
-			</div>
-			<button type="button" class="sa-mini" data-role="restore" title="恢复到侧边栏${expired ? "" : "（行还在隐藏中，恢复后闪烁定位）"}">恢复</button>
-			<button type="button" class="sa-mini danger" data-role="purge" title="真删 .jsonl 文件（不可恢复）">删除</button>
-		</div>`;
+		${record.lastError ? `<div class="sa-item-meta err">${escapeHtml(record.lastError)}</div>` : ""}`;
 	item.querySelectorAll("button[data-role]").forEach((button) => {
-		button.addEventListener("click", async () => {
+		button.addEventListener("click", async (event) => {
+			event.stopPropagation();
 			const role = button.dataset.role;
 			button.disabled = true;
 			try {
@@ -481,76 +463,7 @@ function renderPanelItem(record) {
 			}
 		});
 	});
-	const dd = item.querySelector('.sa-dd[data-role="retention"]');
-	if (dd) {
-		const btn = dd.querySelector(".sa-dd-btn");
-		const menu = dd.querySelector(".sa-dd-menu");
-		btn?.addEventListener("click", (event) => {
-			event.stopPropagation();
-			const wasOpen = dd.classList.contains("open");
-			closeAllDropdowns();
-			if (!wasOpen) openDropdown(dd, menu);
-		});
-		menu?.querySelectorAll(".sa-dd-item").forEach((opt) => {
-			opt.addEventListener("click", async (event) => {
-				event.stopPropagation();
-				closeAllDropdowns();
-				const days = Number(opt.dataset.days);
-				if (days === Number(record.days)) return;
-				try {
-					const result = await request("/retention", {
-						method: "POST",
-						body: JSON.stringify({ id: record.id, days }),
-					});
-					applyRecords(result.records);
-				} catch (err) {
-					toast(`改期失败：${err instanceof Error ? err.message : String(err)}`);
-				}
-			});
-		});
-	}
 	return item;
-}
-
-/**
- * 下拉菜单必须挂在 body 上：它在 .sa-list（overflow:auto）里，
- * 就地绝对定位会被裁切、向上溢出还会盖住搜索栏。
- */
-function openDropdown(dd, menu) {
-	if (!menu) return;
-	dd.classList.add("open");
-	menu.hidden = false;
-	menu.dataset.saUi = "1";
-	document.body.appendChild(menu);
-	const btn = dd.querySelector(".sa-dd-btn");
-	const rect = btn.getBoundingClientRect();
-	const menuHeight = menu.offsetHeight || 120;
-	menu.style.position = "fixed";
-	menu.style.left = `${Math.round(rect.left)}px`;
-	menu.style.width = `${Math.round(rect.width)}px`;
-	const below = rect.bottom + 4;
-	const above = rect.top - menuHeight - 4;
-	// 下面放不下就翻到上面；上面也放不下就贴视口底部
-	if (below + menuHeight <= window.innerHeight - 8 || above < 8) {
-		menu.style.top = `${Math.round(below)}px`;
-		menu.style.bottom = "auto";
-	} else {
-		menu.style.top = `${Math.round(above)}px`;
-		menu.style.bottom = "auto";
-	}
-	dd.__saMenu = menu;
-}
-
-function closeAllDropdowns() {
-	for (const dd of document.querySelectorAll(".sa-dd.open")) {
-		dd.classList.remove("open");
-		const menu = dd.__saMenu;
-		if (menu) {
-			menu.hidden = true;
-			menu.remove();
-			dd.__saMenu = null;
-		}
-	}
 }
 
 /** 恢复后在侧边栏找到那一行：滚动过去 + 闪烁边框；找不到/分区折叠就退回 toast 提示项目名。 */
@@ -718,12 +631,6 @@ function init() {
 
 	const onEscape = (event) => {
 		if (event.key !== "Escape") return;
-		const openDropdowns = document.querySelector(".sa-dd.open");
-		if (openDropdowns) {
-			event.stopPropagation();
-			closeAllDropdowns();
-			return;
-		}
 		if (panelEl) {
 			event.stopPropagation();
 			closePanel();
@@ -731,21 +638,6 @@ function init() {
 	};
 	document.addEventListener("keydown", onEscape, true);
 	cleanups.push(() => document.removeEventListener("keydown", onEscape, true));
-
-	const closeDropdownsOnClick = (event) => {
-		const target = event.target;
-		if (target instanceof Element && target.closest(".sa-dd")) return;
-		closeAllDropdowns();
-	};
-	document.addEventListener("click", closeDropdownsOnClick);
-	cleanups.push(() => document.removeEventListener("click", closeDropdownsOnClick));
-	const closeDropdownsOnMove = () => closeAllDropdowns();
-	window.addEventListener("resize", closeDropdownsOnMove);
-	document.addEventListener("scroll", closeDropdownsOnMove, true);
-	cleanups.push(() => {
-		window.removeEventListener("resize", closeDropdownsOnMove);
-		document.removeEventListener("scroll", closeDropdownsOnMove, true);
-	});
 
 	// 别的窗口/标签页归档后要立刻跟上：广播偶尔丢（比如那一刻页面在后台休眠），切回来时补一次。
 	const syncOnFocus = () => {
