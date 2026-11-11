@@ -138,7 +138,7 @@ function ensureStyles() {
 .lp-sa-btn svg{pointer-events:none}
 .lp-section-actions .lp-slot-btn.sa-header-icon{display:inline-flex;align-items:center;justify-content:center;padding:2px 4px}
 .lp-section-actions .lp-slot-btn.sa-header-icon svg{width:14px;height:14px}
-.sa-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9500;display:flex;align-items:center;justify-content:center}
+.sa-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:flex;align-items:center;justify-content:center}
 .sa-card{background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 18px 48px rgba(0,0,0,.45);width:min(440px,calc(100vw - 32px));padding:16px 18px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 .sa-card h3{margin:0 0 4px;font-size:15px;font-weight:600}
 .sa-sub{opacity:.65;font-size:12px;word-break:break-all;margin-bottom:12px}
@@ -150,7 +150,7 @@ function ensureStyles() {
 .sa-btn.primary{background:var(--accent,#5b8cff);border-color:var(--accent,#5b8cff);color:var(--accent-contrast,#fff)}
 .sa-btn.danger{color:#ff8080;border-color:#ff808055}
 .sa-btn:disabled{opacity:.5;cursor:not-allowed}
-.sa-panel{position:fixed;right:12px;top:56px;width:264px;max-height:min(560px,calc(100vh - 80px));background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.45);z-index:9400;display:flex;flex-direction:column;font:12.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+.sa-panel{position:fixed;right:12px;top:56px;width:264px;max-height:min(560px,calc(100vh - 80px));background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.45);z-index:1000;display:flex;flex-direction:column;font:12.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
 .sa-panel header{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border,#3a3d45)}
 .sa-panel header h3{margin:0;font-size:13px;font-weight:600;flex:0 0 auto}
 .sa-search{flex:1;min-width:0;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:6px;padding:3px 8px;font-size:12px;outline:none;transition:border-color .12s,box-shadow .12s}
@@ -182,7 +182,7 @@ function ensureStyles() {
 .sa-empty{padding:18px 10px;text-align:center;opacity:.6}
 @keyframes saFlash{0%,100%{box-shadow:none;background:transparent}50%{box-shadow:0 0 0 2px var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 18%,transparent)}}
 .lp-row.sa-flash{animation:saFlash .9s ease-in-out 3;border-radius:8px}
-.sa-toast{position:fixed;right:16px;bottom:16px;z-index:9600;background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.45);padding:10px 12px;display:flex;align-items:center;gap:10px;font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:min(420px,calc(100vw - 32px))}
+.sa-toast{position:fixed;right:16px;bottom:16px;z-index:1050;background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.45);padding:10px 12px;display:flex;align-items:center;gap:10px;font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:min(420px,calc(100vw - 32px))}
 .sa-toast button{border:0;background:transparent;color:var(--accent,#5b8cff);cursor:pointer;font-size:13px}
 .sa-close{border:0;background:transparent;color:inherit;cursor:pointer;opacity:.65;font-size:15px;line-height:1;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;transition:background .12s,color .12s,transform .08s}
 .sa-close:hover{opacity:1;background:color-mix(in srgb,var(--text,#e8e8ea) 14%,transparent)}
