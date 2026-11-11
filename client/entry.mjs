@@ -210,6 +210,8 @@ function scan() {
 		}
 		showRow(row);
 		if (row.querySelector(`.${BTN_CLASS}`)) continue;
+		// 「运行的对话」里的行是活会话：归档它没有意义（文件还在写）。
+		if (row.querySelector(".session-item.is-running")) continue;
 		const active = rowIsActive(row);
 		const deleteBtn = rowDeleteButton(row);
 		if (!deleteBtn && !(active && state.showActiveRowButton)) continue;
