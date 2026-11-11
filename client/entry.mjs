@@ -678,10 +678,14 @@ function init() {
 		for (const mutation of mutations) {
 			const target = mutation.target;
 			if (target instanceof Element && target.closest("[data-sa-ui='1']")) continue;
-			// 宿主弹窗/遮罩一出现就让位（用户点了设置、命令面板、确认框等）
+			// 宿主弹窗/遮罩一出现就让位（用户点了设置、命令面板等）。
+			// 必须排除插件自己画的 UI：我们的确认框也带 role="dialog"，否则一弹就把自己关掉。
 			if (panelEl) {
 				for (const node of mutation.addedNodes) {
-					if (node instanceof Element && (node.matches(MODAL_SELECTOR) || node.querySelector(MODAL_SELECTOR))) {
+					if (!(node instanceof Element)) continue;
+					if (node.dataset.saUi === "1" || node.closest("[data-sa-ui='1']")) continue;
+					if (node.querySelector("[data-sa-ui='1']") && !node.querySelector(MODAL_SELECTOR + ":not([data-sa-ui='1'])")) continue;
+					if (node.matches(MODAL_SELECTOR) || node.querySelector(MODAL_SELECTOR)) {
 						closePanel();
 						break;
 					}
