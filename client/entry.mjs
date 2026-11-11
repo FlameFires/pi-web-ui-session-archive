@@ -141,8 +141,9 @@ function ensureStyles() {
 	style.textContent = `
 [${ROW_ATTR}="1"]{display:none!important}
 /* 归档按钮复用宿主 .lp-del 的定位口径：删除 6px、重命名 32px，归档排到 58px。 */
-.lp-row > .lp-sa-btn.lp-del{right:58px;color:var(--accent,#5b8cff)}
-.lp-row > .lp-sa-btn.lp-del:hover{color:var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 22%,var(--bg-elev2,#1c1f28))}
+/* 静止态跟宿主的 ✏/🗑 一致（继承 .lp-del 的 --text-dim），只有 hover 才用 accent 点亮 */
+.lp-row > .lp-sa-btn.lp-del{right:58px}
+.lp-row > .lp-sa-btn.lp-del:hover{color:var(--accent,#5b8cff);background:color-mix(in srgb,var(--accent,#5b8cff) 20%,var(--bg-elev2,#1c1f28))}
 .lp-del-group > .lp-sa-btn.lp-del{position:static;right:auto;transform:none}
 /* 宿主这一行没有 ✏/🗑 时（运行中等），归档按钮自己占最右 */
 .lp-row > .lp-sa-btn.lp-del.sa-solo{right:6px}
