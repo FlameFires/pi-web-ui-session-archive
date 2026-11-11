@@ -28,6 +28,7 @@ const RETENTION_OPTIONS = [
 const state = {
 	records: [],
 	paths: new Set(),
+	ids: new Set(),
 	defaultDays: 7,
 	showActiveRowButton: false,
 	panelOpen: false,
@@ -41,6 +42,7 @@ let dialogEl = null;
 let panelEl = null;
 let toastEl = null;
 let started = false;
+const cleanups = [];
 
 /* ---------------------------------------------------------------- 基础设施 */
 
@@ -59,6 +61,12 @@ function normPath(p) {
 		.trim()
 		.replace(/\\/g, "/")
 		.toLowerCase();
+}
+
+/** 会话文件名里带 sessionId：`2026-11-11T07-48-40-971Z_<uuid>.jsonl`。 */
+function sessionIdOf(path) {
+	const match = String(path ?? "").match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i);
+	return match ? match[1].toLowerCase() : "";
 }
 
 function formatDay(iso) {
@@ -93,6 +101,7 @@ async function request(pathname, init) {
 function applyRecords(records) {
 	state.records = Array.isArray(records) ? records : [];
 	state.paths = new Set(state.records.map((r) => normPath(r.path)));
+	state.ids = new Set(state.records.map((r) => sessionIdOf(r.path)).filter(Boolean));
 	if (panelEl) renderPanel();
 }
 
@@ -199,16 +208,25 @@ function makeArchiveButton(row, path) {
 	return btn;
 }
 
+function rowIsArchived(row, path) {
+	if (path && state.paths.has(normPath(path))) return true;
+	const key = (row.getAttribute("data-session-key") ?? "").trim().toLowerCase();
+	if (key && state.ids.has(key)) return true;
+	return false;
+}
+
 function scan() {
 	if (!document.body) return;
 	for (const row of document.querySelectorAll(".lp-row")) {
 		const path = rowSessionPath(row);
-		if (!path) continue;
-		if (state.paths.has(normPath(path))) {
+		// 已归档的会话按「会话文件路径」和「sessionId」两条线都隐藏：
+		// 同一个会话在「历史对话」里是 .jsonl 路径，在别的分区（运行的对话/分组）里只有 data-session-key。
+		if (rowIsArchived(row, path)) {
 			hideRow(row);
 			continue;
 		}
 		showRow(row);
+		if (!path) continue;
 		if (row.querySelector(`.${BTN_CLASS}`)) continue;
 		// 「运行的对话」里的行是活会话：归档它没有意义（文件还在写）。
 		if (row.querySelector(".session-item.is-running")) continue;
@@ -517,6 +535,18 @@ function init() {
 		}
 	});
 
+	// 别的窗口/标签页归档后要立刻跟上：广播偶尔丢（比如那一刻页面在后台休眠），切回来时补一次。
+	const syncOnFocus = () => {
+		if (document.visibilityState === "hidden") return;
+		void refresh();
+	};
+	document.addEventListener("visibilitychange", syncOnFocus);
+	window.addEventListener("focus", syncOnFocus);
+	cleanups.push(() => {
+		document.removeEventListener("visibilitychange", syncOnFocus);
+		window.removeEventListener("focus", syncOnFocus);
+	});
+
 	document.addEventListener("keydown", (event) => {
 		if (event.key !== "Escape") return;
 		if (dialogEl) {
@@ -546,6 +576,13 @@ function dispose() {
 	toastEl = null;
 	for (const btn of document.querySelectorAll(`.${BTN_CLASS}`)) btn.remove();
 	for (const row of document.querySelectorAll(`.lp-row[${ROW_ATTR}]`)) row.removeAttribute(ROW_ATTR);
+	for (const fn of cleanups.splice(0)) {
+		try {
+			fn();
+		} catch {
+			/* dispose 幂等 */
+		}
+	}
 	started = false;
 }
 
