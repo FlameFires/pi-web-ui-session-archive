@@ -1,6 +1,6 @@
 {
   "name": "pi-web-ui-session-archive",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "pi-web-ui community plugin: sidebar session archive (archive without deleting, expiry only reminds by default)",
   "license": "MIT",

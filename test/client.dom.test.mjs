@@ -259,8 +259,8 @@ describe("session-archive 浏览器侧 DOM", () => {
 		const button = btns("ok")[0];
 		assert.equal(button.type, "button");
 		assert.ok(button.classList.contains("lp-del"), "归档按钮应带 .lp-del 复用宿主 hover 样式");
-		assert.equal(button.getAttribute("aria-label"), "归档这个对话");
-		assert.equal(button.getAttribute("title"), "归档这个对话（不删除，可设到期时间）");
+		assert.equal(button.getAttribute("aria-label"), "归档（收起）");
+		assert.equal(button.getAttribute("title"), "归档（从侧边栏收起，不删内容；到期只提醒）");
 		assert.match(button.innerHTML, /<svg /);
 
 		const children = [...row("ok").children];

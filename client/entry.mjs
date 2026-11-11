@@ -281,8 +281,8 @@ function makeArchiveButton(row, path) {
 	const btn = document.createElement("button");
 	btn.type = "button";
 	btn.className = `lp-del ${BTN_CLASS}`;
-	btn.title = "归档这个对话（不删除，可设到期时间）";
-	btn.setAttribute("aria-label", "归档这个对话");
+	btn.title = "归档（从侧边栏收起，不删内容；到期只提醒）";
+	btn.setAttribute("aria-label", "归档（收起）");
 	btn.innerHTML = ICON_ARCHIVE;
 	btn.addEventListener("click", (event) => {
 		event.preventDefault();

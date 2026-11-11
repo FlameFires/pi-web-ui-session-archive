@@ -76,6 +76,20 @@ node --test "test/*.test.mjs"     # 40 个用例
 - 原生会话文件被外部删除（例如宿主自己的删除按钮）时，归档记录仍在；到期的删除会识别"文件已不在"并直接收尾。
 - 插件被卸载后状态文件留在 `<dataDir>/session-archive/`，行不再隐藏、也再无自动删除。
 
+## 与 md-chat 的区别
+
+社区里 [md-chat](https://github.com/engharat/pi-web-ui-md-chat) 也叫「归档/chat archive」，但两者做的是不同的事，装在一起互补而不冲突：
+
+| | md-chat | 本插件 session-archive |
+| --- | --- | --- |
+| 「归档」的含义 | **另存一份可读副本**（`<dataDir>/plugins/md-chat/archive/*.json`，含 thinking/工具输出明文） | **从侧边栏收起**（只记路径 + 标题 + 到期时间，**不复制任何内容**） |
+| 原生列表 | 不动，会话仍在侧边栏 | 被隐藏 |
+| 阅读 | 点 HISTORY 里那一行直接读全文 | 收起后要看得先恢复；想看全文建议配合 md-chat |
+| 到期与删除 | 没有保留期、没有删除策略 | 1/7/30 天或永不；到期默认只提醒，删除需手动确认 |
+| 权限 | `fs:read` | `ui` / `dom` / `fs:read` / `fs`（删文件需要） |
+
+> ⚠️ **删文件 ≠ 内容彻底消失**：md-chat 的副本独立于原生会话文件，本插件把 `.jsonl` 删掉之后，md-chat 里已保存的全文仍然存在。两者语义不同，别把「到期删除」当成隐私清除。
+
 ## 已知宿主 bug（与插件无关）
 
 - **置顶会话跨项目串台**：宿主 `pinSession()` 按「当前 cwd」记账、预打开置顶会话时也不校验会话归属，导致项目 A 的列表里出现属于项目 B 的会话（`say ok` 就是这么冒出来的）。本仓库带一个可重放的宿主补丁与完整取证、上游 issue 草稿：见 [`docs/HOST-PATCH-pinned-session-cwd.md`](docs/HOST-PATCH-pinned-session-cwd.md)；脚本 `scripts/patch-host-pin.mjs`（`--check` / `--revert` / 升级宿主后重跑）。
