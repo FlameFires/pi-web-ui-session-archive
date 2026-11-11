@@ -179,8 +179,8 @@ function ensureStyles() {
 .sa-dd.open .sa-dd-btn{border-color:var(--accent,#5b8cff)}
 .sa-dd-caret{opacity:.6;font-size:9px;transition:transform .12s}
 .sa-dd.open .sa-dd-caret{transform:rotate(180deg)}
-.sa-dd-menu{position:absolute;z-index:1001;left:0;right:0;bottom:calc(100% + 3px);background:var(--bg-elev,#1f2127);border:1px solid var(--border,#3a3d45);border-radius:6px;box-shadow:0 8px 22px rgba(0,0,0,.4);padding:3px;display:none}
-.sa-dd.open .sa-dd-menu{display:block}
+.sa-dd-menu{position:fixed;z-index:1100;background:var(--bg-elev,#1f2127);border:1px solid var(--border,#3a3d45);border-radius:6px;box-shadow:0 8px 22px rgba(0,0,0,.4);padding:3px;font:12px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text,#e8e8ea)}
+.sa-dd-menu[hidden]{display:none}
 .sa-dd-item{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;border-radius:4px;padding:3px 7px;font-size:11.5px;cursor:pointer}
 .sa-dd-item:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 16%,transparent)}
 .sa-dd-item[data-active="1"]{color:var(--accent,#5b8cff);font-weight:600}
@@ -333,6 +333,7 @@ function scheduleScan() {
 /* ---------------------------------------------------------------- 管理面板 */
 
 function closePanel() {
+	closeAllDropdowns();
 	panelEl?.remove();
 	panelEl = null;
 	state.panelOpen = false;
@@ -361,6 +362,8 @@ function projectLabel(folder) {
 
 function renderPanel() {
 	if (!panelEl) return;
+	// 重渲染会重建条目，浮层菜单必须一起收掉，否则会留下孤儿节点
+	closeAllDropdowns();
 	const list = panelEl.querySelector(".sa-list");
 	const count = panelEl.querySelector(".sa-count");
 	if (!list) return;
@@ -421,7 +424,7 @@ function renderPanelItem(record) {
 					<span>${escapeHtml(RETENTION_OPTIONS.find((o) => o.days === Number(record.days))?.label ?? `${record.days} 天后提醒`)}</span>
 					<span class="sa-dd-caret">▾</span>
 				</button>
-				<div class="sa-dd-menu">
+				<div class="sa-dd-menu" hidden>
 					${RETENTION_OPTIONS.map(
 						(o) =>
 							`<button type="button" class="sa-dd-item" data-days="${o.days}"${Number(record.days) === o.days ? ' data-active="1"' : ""}>${o.label}</button>`,
@@ -431,7 +434,7 @@ function renderPanelItem(record) {
 			<button type="button" class="sa-mini" data-role="restore" title="恢复到侧边栏${expired ? "" : "（行还在隐藏中，恢复后闪烁定位）"}">恢复</button>
 			<button type="button" class="sa-mini danger" data-role="purge" title="真删 .jsonl 文件（不可恢复）">删除</button>
 		</div>`;
-	item.querySelectorAll("button").forEach((button) => {
+	item.querySelectorAll("button[data-role]").forEach((button) => {
 		button.addEventListener("click", async () => {
 			const role = button.dataset.role;
 			button.disabled = true;
@@ -466,13 +469,14 @@ function renderPanelItem(record) {
 	const dd = item.querySelector('.sa-dd[data-role="retention"]');
 	if (dd) {
 		const btn = dd.querySelector(".sa-dd-btn");
+		const menu = dd.querySelector(".sa-dd-menu");
 		btn?.addEventListener("click", (event) => {
 			event.stopPropagation();
 			const wasOpen = dd.classList.contains("open");
 			closeAllDropdowns();
-			if (!wasOpen) dd.classList.add("open");
+			if (!wasOpen) openDropdown(dd, menu);
 		});
-		dd.querySelectorAll(".sa-dd-item").forEach((opt) => {
+		menu?.querySelectorAll(".sa-dd-item").forEach((opt) => {
 			opt.addEventListener("click", async (event) => {
 				event.stopPropagation();
 				closeAllDropdowns();
@@ -493,8 +497,45 @@ function renderPanelItem(record) {
 	return item;
 }
 
+/**
+ * 下拉菜单必须挂在 body 上：它在 .sa-list（overflow:auto）里，
+ * 就地绝对定位会被裁切、向上溢出还会盖住搜索栏。
+ */
+function openDropdown(dd, menu) {
+	if (!menu) return;
+	dd.classList.add("open");
+	menu.hidden = false;
+	menu.dataset.saUi = "1";
+	document.body.appendChild(menu);
+	const btn = dd.querySelector(".sa-dd-btn");
+	const rect = btn.getBoundingClientRect();
+	const menuHeight = menu.offsetHeight || 120;
+	menu.style.position = "fixed";
+	menu.style.left = `${Math.round(rect.left)}px`;
+	menu.style.width = `${Math.round(rect.width)}px`;
+	const below = rect.bottom + 4;
+	const above = rect.top - menuHeight - 4;
+	// 下面放不下就翻到上面；上面也放不下就贴视口底部
+	if (below + menuHeight <= window.innerHeight - 8 || above < 8) {
+		menu.style.top = `${Math.round(below)}px`;
+		menu.style.bottom = "auto";
+	} else {
+		menu.style.top = `${Math.round(above)}px`;
+		menu.style.bottom = "auto";
+	}
+	dd.__saMenu = menu;
+}
+
 function closeAllDropdowns() {
-	for (const dd of document.querySelectorAll(".sa-dd.open")) dd.classList.remove("open");
+	for (const dd of document.querySelectorAll(".sa-dd.open")) {
+		dd.classList.remove("open");
+		const menu = dd.__saMenu;
+		if (menu) {
+			menu.hidden = true;
+			menu.remove();
+			dd.__saMenu = null;
+		}
+	}
 }
 
 /** 恢复后在侧边栏找到那一行：滚动过去 + 闪烁边框；找不到/分区折叠就退回 toast 提示项目名。 */
@@ -651,6 +692,13 @@ function init() {
 	};
 	document.addEventListener("click", closeDropdownsOnClick);
 	cleanups.push(() => document.removeEventListener("click", closeDropdownsOnClick));
+	const closeDropdownsOnMove = () => closeAllDropdowns();
+	window.addEventListener("resize", closeDropdownsOnMove);
+	document.addEventListener("scroll", closeDropdownsOnMove, true);
+	cleanups.push(() => {
+		window.removeEventListener("resize", closeDropdownsOnMove);
+		document.removeEventListener("scroll", closeDropdownsOnMove, true);
+	});
 
 	// 别的窗口/标签页归档后要立刻跟上：广播偶尔丢（比如那一刻页面在后台休眠），切回来时补一次。
 	const syncOnFocus = () => {
