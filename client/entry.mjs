@@ -626,6 +626,15 @@ async function waitForRestoredRow(ids, timeoutMs = 1600) {
 
 let flashTimer = null;
 
+/** 调试开关：localStorage.setItem("sa-debug","1") 后刷新，恢复流程会打印决策日志。 */
+function debugLog(...args) {
+	try {
+		if (window.localStorage?.getItem("sa-debug") === "1") console.info("[session-archive]", ...args);
+	} catch {
+		/* localStorage 不可用就当没开 */
+	}
+}
+
 function flashRow(row) {
 	// 同一行反复闪会叠动画，先把上一次收干净
 	if (flashTimer) window.clearTimeout(flashTimer);
@@ -645,10 +654,21 @@ async function flashRestoredRow(record) {
 		toast(`已恢复「${record.title || record.path}」· 所在项目：${projectLabel(folder)}（侧边栏没显示这一行，切到该项目即可见）`);
 
 	let row = findRestoredRow(ids);
+	debugLog("restore", {
+		path: record.path,
+		folder,
+		rowFound: !!row,
+		projectRows: [...document.querySelectorAll(".lp-project-head-row")].map((r) => ({
+			cls: r.className,
+			path: r.querySelector("[data-project-path]")?.getAttribute("data-project-path"),
+		})),
+	});
 	if (!row) {
 		// 行还没渲染多半是被折叠的项目藏着（宿主折叠时不渲染子树）→ 先展开再等它出现
-		await expandProjectForFolder(folder);
+		const clicked = await expandProjectForFolder(folder);
+		debugLog("expand attempt", { clicked });
 		row = await waitForRestoredRow(ids);
+		debugLog("row after expand", { rowFound: !!row });
 	}
 	if (!row) {
 		fallback();
@@ -656,6 +676,7 @@ async function flashRestoredRow(record) {
 	}
 	// 行在 DOM 里但不可见：可能是别的折叠层级（分区 / 列被收起）
 	const visible = await ensureRowVisible(row);
+	debugLog("visible check", { visible, rects: row.getClientRects().length });
 	if (!visible) {
 		fallback();
 		return;
