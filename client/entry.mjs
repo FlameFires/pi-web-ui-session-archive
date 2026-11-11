@@ -233,10 +233,20 @@ function rowSessionPath(row) {
 	return /\.jsonl$/i.test(key) ? key : "";
 }
 
+/** 行文本 = 标题 + 另一处/运行中 + 时间，展示/存储前先剥掉这些噪音。 */
+function cleanRowLabel(text) {
+	return String(text ?? "")
+		.replace(/\s+/g, " ")
+		.replace(/(另一处|运行中|别处|elsewhere|running)\s*/gi, " ")
+		.replace(/\s*\d{1,2}:\d{2}\s*$/, "")
+		.replace(/^当前\s*/, "")
+		.trim()
+		.slice(0, 80);
+}
+
 function rowLabel(row) {
 	const el = row.querySelector(".session-item");
-	const text = (el?.textContent ?? "").replace(/\s+/g, " ").trim();
-	return text.slice(0, 80);
+	return cleanRowLabel(el?.textContent ?? "");
 }
 
 /** 这类行的可见文本是「标题 + 另一处 + 时间」拼的，不能当标题用。 */
@@ -453,7 +463,7 @@ function renderPanelItem(record) {
 	const expired = record.status === "expired";
 	item.innerHTML = `
 		<div class="sa-item-head">
-			<span class="sa-item-title" title="${escapeAttr(record.title || record.path)}">${escapeHtml(record.title || "(未命名对话)")}</span>
+			<span class="sa-item-title" title="${escapeAttr(record.title || record.path)}">${escapeHtml(cleanRowLabel(record.title) || "(未命名对话)")}</span>
 			<span class="sa-item-actions">
 				<button type="button" class="sa-iact" data-role="restore" title="恢复${expired ? "" : "（行还在隐藏中，恢复后闪烁定位）"}">${ICON_RESTORE}</button>
 				<button type="button" class="sa-iact danger" data-role="purge" title="删除会话文件（不可恢复）">${ICON_TRASH}</button>
