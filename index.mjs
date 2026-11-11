@@ -340,6 +340,52 @@ export default {
 			return { deleted, expired };
 		};
 
+		/**
+		 * “当前对话”的侧边栏行文本是「当前 + 时间」，不是会话名。
+		 * 标题可疑时读 .jsonl 文件头里的真实名字（纯只读，不申请授权）。
+		 */
+		const resolveTitle = (absPath, fallback) => {
+			const label = String(fallback ?? "").trim();
+			if (!/^当前/.test(label)) return label;
+			try {
+				const text = existsSync(absPath) ? readFileSync(absPath, "utf8") : "";
+				let lastName = null;
+				let firstUserText = null;
+				for (const line of text.split("\n")) {
+					if (!line.trim()) continue;
+					let parsed;
+					try {
+						parsed = JSON.parse(line);
+					} catch {
+						continue;
+					}
+					// 宿主改名 = 追加 session_info 条目，取最新的
+					if (parsed?.type === "session_info" && typeof parsed.name === "string" && parsed.name.trim()) {
+						lastName = parsed.name.trim().slice(0, 200);
+						continue;
+					}
+					if (firstUserText === null && parsed?.type === "message" && parsed.message?.role === "user") {
+						const content = parsed.message.content;
+						let textPart = "";
+						if (typeof content === "string") textPart = content;
+						else if (Array.isArray(content)) {
+							textPart = content
+								.filter((c) => c && (c.type === "text" || typeof c.text === "string"))
+								.map((c) => c.text ?? "")
+								.join(" ");
+						} else if (typeof parsed.message.text === "string") textPart = parsed.message.text;
+						textPart = textPart.replace(/\s+/g, " ").trim();
+						if (textPart) firstUserText = textPart.slice(0, 80);
+					}
+				}
+				if (lastName) return lastName;
+				if (firstUserText) return firstUserText;
+			} catch {
+				/* 读不到就保留原文本 */
+			}
+			return label;
+		};
+
 		host.route("GET", "/state", (_req, res) => {
 			sendJson(res, 200, { ok: true, records: publicRecords(state), settings: settings() });
 		});
@@ -356,7 +402,7 @@ export default {
 			// 归档本身只写记录 + 隐藏行，不碰文件、不申请任何目录授权。
 			const { record, created } = archiveRecord(state, {
 				path: rawPath,
-				title: body.title,
+				title: resolveTitle(rawPath, body.title),
 				extension: body.extension,
 				days,
 			});

@@ -12,6 +12,7 @@
 	"permissions": [
 		"ui",
 		"dom",
+		"fs:read",
 		"fs",
 		"http"
 	],
