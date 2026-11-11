@@ -4,6 +4,9 @@ import { describe, it } from "node:test";
 import {
 	DAY_MS,
 	archiveRecord,
+	dedupeRecords,
+	extractUserText,
+	readSessionEdges,
 	computeExpiresAt,
 	dueForDeletion,
 	emptyState,
@@ -135,6 +138,46 @@ describe("归档记录生命周期", () => {
 			state.records.map((r) => r.id),
 			[expiring.id, archived.id],
 		);
+	});
+});
+
+describe("标题解析工具", () => {
+	it("extractUserText 吃字符串 / 分段数组 / 纯 text", () => {
+		assert.equal(extractUserText({ content: " hi  there " }), "hi there");
+		assert.equal(extractUserText({ content: [{ type: "text", text: "a" }, { type: "image" }, { text: "b" }] }), "a b");
+		assert.equal(extractUserText({ text: "x  y" }), "x y");
+		assert.equal(extractUserText({}), "");
+	});
+
+	it("readSessionEdges 只读头尾，大文件不会被整读", async () => {
+		const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+		const dir = mkdtempSync(join(tmpdir(), "sa-edge-"));
+		try {
+			const file = join(dir, "big.jsonl");
+			const filler = `${JSON.stringify({ type: "message", message: { role: "assistant", content: "x".repeat(500) } })}\n`;
+			writeFileSync(file, `{"type":"session"}\n${filler.repeat(200)}${JSON.stringify({ type: "session_info", name: "真名" })}\n`);
+			const { head, tail } = readSessionEdges(file, 1024, 512);
+			assert.ok(head.length <= 1024, "头部要被截断");
+			assert.ok(tail.length <= 512, "尾部要被截断");
+			assert.match(tail, /真名/, "尾部要包含最新的 session_info");
+			assert.equal(readSessionEdges(join(dir, "missing.jsonl")).head, "", "文件不存在返回空");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("载入去重", () => {
+	it("同路径只留最新一条，按 archivedAt 倒序", () => {
+		const older = { path: FILE, archivedAt: new Date(1000).toISOString(), status: "restored" };
+		const newer = { path: FILE, archivedAt: new Date(2000).toISOString(), status: "archived" };
+		const other = { path: `${FILE}.b`, archivedAt: new Date(1500).toISOString(), status: "archived" };
+		const list = dedupeRecords([older, newer, other]);
+		assert.equal(list.length, 2);
+		assert.equal(list[0].status, "archived");
+		assert.equal(list[0].archivedAt, newer.archivedAt);
 	});
 });
 

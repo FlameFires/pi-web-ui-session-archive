@@ -685,6 +685,24 @@ function init() {
 		for (const mutation of mutations) {
 			const target = mutation.target;
 			if (target instanceof Element && target.closest("[data-sa-ui='1']")) continue;
+			// 聊天流式输出会疯狂改 DOM：只关心左栏行相关/弹窗相关的变动，其余直接跳过
+			let relevant = false;
+			for (const node of mutation.addedNodes) {
+				if (!(node instanceof Element)) continue;
+				if (node.matches(".lp-row, .lp-section-actions, .lp-tree-session-item, [data-session-key]")) {
+					relevant = true;
+					break;
+				}
+				if (node.querySelector(".lp-row, .lp-slot-btn, [data-sa-menu]")) {
+					relevant = true;
+					break;
+				}
+				if (node.matches(MODAL_SELECTOR) || node.querySelector(MODAL_SELECTOR)) {
+					relevant = true;
+					break;
+				}
+			}
+			if (!relevant && mutation.removedNodes.length === 0) continue;
 			// 宿主弹窗/遮罩一出现就让位（用户点了设置、命令面板等）。
 			// 必须排除插件自己画的 UI：我们的确认框也带 role="dialog"，否则一弹就把自己关掉。
 			if (panelEl) {
@@ -699,7 +717,7 @@ function init() {
 				}
 			}
 			scheduleScan();
-			return;
+			break;
 		}
 	});
 	observer.observe(document.body, { childList: true, subtree: true });
@@ -712,9 +730,15 @@ function init() {
 		if (document.visibilityState === "hidden") return;
 		void refresh();
 	}, POLL_MS);
-	// 文案里的"剩 N 天"要自己走：不联网的本地重绘
+	// 文案里的"剩 N 天"要自己走：只改文本节点，不动 DOM 结构（否则 hover 中的图标会闪）
 	const tickTimer = window.setInterval(() => {
-		if (panelEl && document.visibilityState !== "hidden") renderPanel();
+		if (!panelEl || document.visibilityState === "hidden") return;
+		for (const item of panelEl.querySelectorAll(".sa-item")) {
+			const path = item.dataset.saPath;
+			const record = state.records.find((r) => r.path === path);
+			const meta = item.querySelector(".sa-item-meta");
+			if (record && meta) meta.textContent = formatDay(record.expiresAt, record.status);
+		}
 	}, 60_000);
 	cleanups.push(() => window.clearInterval(tickTimer));
 

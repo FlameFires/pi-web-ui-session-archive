@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -78,13 +78,29 @@ export function loadState(file) {
 		if (!existsSync(file)) return emptyState();
 		const parsed = JSON.parse(readFileSync(file, "utf8"));
 		if (!parsed || !Array.isArray(parsed.records)) return emptyState();
-		return {
-			version: 1,
-			records: parsed.records.filter((r) => r && typeof r.path === "string" && r.path),
-		};
+		const valid = parsed.records.filter((r) => r && typeof r.path === "string" && r.path);
+		return { version: 1, records: dedupeRecords(valid) };
 	} catch {
 		return emptyState();
 	}
+}
+
+/** 同一条会话只留一条记录（取 archivedAt 最新的），顺手清掉坏时间戳的。 */
+export function dedupeRecords(records) {
+	const byKey = new Map();
+	for (const record of records) {
+		const key = record.key || normalizePathKey(record.path);
+		if (!key) continue;
+		const prev = byKey.get(key);
+		if (!prev) {
+			byKey.set(key, record);
+			continue;
+		}
+		const a = Date.parse(record.archivedAt ?? "") || 0;
+		const b = Date.parse(prev.archivedAt ?? "") || 0;
+		if (a >= b) byKey.set(key, record);
+	}
+	return [...byKey.values()].sort((x, y) => (Date.parse(y.archivedAt ?? "") || 0) - (Date.parse(x.archivedAt ?? "") || 0));
 }
 
 /** 原子写：先写临时文件再 rename，避免半写状态。 */
@@ -225,6 +241,41 @@ export function publicRecords(state) {
 		}));
 }
 
+/** 读会话文件头 32KB 与尾 128KB（session_info 追加在尾部）。 */
+export function readSessionEdges(absPath, headBytes = 32 * 1024, tailBytes = 128 * 1024) {
+	try {
+		const stat = statSync(absPath);
+		const fd = openSync(absPath, "r");
+		try {
+			const headLen = Math.min(headBytes, stat.size);
+			const headBuf = Buffer.alloc(headLen);
+			readSync(fd, headBuf, 0, headLen, 0);
+			const tailLen = Math.min(tailBytes, stat.size);
+			const tailBuf = Buffer.alloc(tailLen);
+			readSync(fd, tailBuf, 0, tailLen, Math.max(0, stat.size - tailLen));
+			return { head: headBuf.toString("utf8"), tail: tailBuf.toString("utf8") };
+		} finally {
+			closeSync(fd);
+		}
+	} catch {
+		return { head: "", tail: "" };
+	}
+}
+
+/** 从 message 里取纯文本（content 可能是字符串或分段数组）。 */
+export function extractUserText(message) {
+	const content = message?.content;
+	let text = "";
+	if (typeof content === "string") text = content;
+	else if (Array.isArray(content)) {
+		text = content
+			.filter((c) => c && (c.type === "text" || typeof c.text === "string"))
+			.map((c) => c.text ?? "")
+			.join(" ");
+	} else if (typeof message?.text === "string") text = message.text;
+	return text.replace(/\s+/g, " ").trim();
+}
+
 function sendJson(res, status, payload) {
 	try {
 		res.status(status).json(payload);
@@ -348,15 +399,21 @@ export default {
 		 * “当前对话”的侧边栏行文本是「当前 + 时间」，不是会话名。
 		 * 标题可疑时读 .jsonl 文件头里的真实名字（纯只读，不申请授权）。
 		 */
+		/**
+		 * “当前对话”的侧边栏行文本是「当前 + 时间」，不是会话名。
+		 * 标题可疑时读 .jsonl 里的真名：session_info（宿主改名）优先，其次第一条用户消息。
+		 * 只读头 32KB + 尾 128KB —— 会话文件可能几百 MB，整读会卡住宿主事件循环。
+		 */
 		const resolveTitle = (absPath, fallback, current) => {
 			const label = String(fallback ?? "").trim();
 			const suspicious = current === true || /^当前/.test(label) || /^\d{1,2}:\d{2}/.test(label);
 			if (!suspicious) return label;
-			try {
-				const text = existsSync(absPath) ? readFileSync(absPath, "utf8") : "";
-				let lastName = null;
-				let firstUserText = null;
-				for (const line of text.split("\n")) {
+			const { head, tail } = readSessionEdges(absPath);
+			if (!head && !tail) return label;
+			let lastName = null;
+			let firstUserText = null;
+			for (const chunk of [head, tail]) {
+				for (const line of chunk.split("\n")) {
 					if (!line.trim()) continue;
 					let parsed;
 					try {
@@ -364,31 +421,16 @@ export default {
 					} catch {
 						continue;
 					}
-					// 宿主改名 = 追加 session_info 条目，取最新的
 					if (parsed?.type === "session_info" && typeof parsed.name === "string" && parsed.name.trim()) {
 						lastName = parsed.name.trim().slice(0, 200);
 						continue;
 					}
 					if (firstUserText === null && parsed?.type === "message" && parsed.message?.role === "user") {
-						const content = parsed.message.content;
-						let textPart = "";
-						if (typeof content === "string") textPart = content;
-						else if (Array.isArray(content)) {
-							textPart = content
-								.filter((c) => c && (c.type === "text" || typeof c.text === "string"))
-								.map((c) => c.text ?? "")
-								.join(" ");
-						} else if (typeof parsed.message.text === "string") textPart = parsed.message.text;
-						textPart = textPart.replace(/\s+/g, " ").trim();
-						if (textPart) firstUserText = textPart.slice(0, 80);
+						firstUserText = extractUserText(parsed.message).slice(0, 80) || null;
 					}
 				}
-				if (lastName) return lastName;
-				if (firstUserText) return firstUserText;
-			} catch {
-				/* 读不到就保留原文本 */
 			}
-			return label;
+			return lastName || firstUserText || label;
 		};
 
 		host.route("GET", "/state", (_req, res) => {
@@ -396,6 +438,8 @@ export default {
 			let healed = false;
 			for (const record of state.records) {
 				if (record.status !== "archived" && record.status !== "expired") continue;
+				const suspicious = /^当前/.test(record.title ?? "") || /^\d{1,2}:\d{2}/.test(record.title ?? "");
+				if (!suspicious || !existsSync(record.path)) continue;
 				const fixed = resolveTitle(record.path, record.title, true);
 				if (fixed && fixed !== record.title) {
 					record.title = fixed;
