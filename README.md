@@ -74,6 +74,11 @@ node --test "test/*.test.mjs"     # 40 个用例
 - 原生会话文件被外部删除（例如宿主自己的删除按钮）时，归档记录仍在；到期的删除会识别"文件已不在"并直接收尾。
 - 插件被卸载后状态文件留在 `<dataDir>/session-archive/`，行不再隐藏、也再无自动删除。
 
+## 已知宿主 bug（与插件无关）
+
+- **置顶会话跨项目串台**：宿主 `pinSession()` 按「当前 cwd」记账、预打开置顶会话时也不校验会话归属，导致项目 A 的列表里出现属于项目 B 的会话（`say ok` 就是这么冒出来的）。本仓库带一个可重放的宿主补丁与完整取证、上游 issue 草稿：见 [`docs/HOST-PATCH-pinned-session-cwd.md`](docs/HOST-PATCH-pinned-session-cwd.md)；脚本 `scripts/patch-host-pin.mjs`（`--check` / `--revert` / 升级宿主后重跑）。
+- **插件更新后必须重启宿主**：服务端 `index.mjs` 只在进程启动时 import；`pi-web-ui install --force` 只换磁盘文件。浏览器刷新仅更新客户端 bundle。
+
 ## 许可证
 
 MIT。仅使用宿主公开插件 API 与 Node 内置模块，无三方依赖。
