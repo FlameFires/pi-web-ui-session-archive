@@ -225,7 +225,12 @@ function ensureStyles() {
 function rowSessionPath(row) {
 	const el = row.querySelector(".session-item[title]");
 	const title = el?.getAttribute("title")?.trim() ?? "";
-	return /\.jsonl$/i.test(title) ? title : "";
+	if (/\.jsonl$/i.test(title)) return title;
+	// 「另一处 / 运行的对话」这几类行的 title 是 cwd + 提示语，但宿主把会话文件路径
+	// 归一化后写进了 data-session-key（反斜杠转斜杠 + 全小写）。Windows 路径大小写不敏感，
+	// 服务端 resolve() 后照样能读写，所以直接拿它当路径。
+	const key = (row.getAttribute("data-session-key") ?? "").trim();
+	return /\.jsonl$/i.test(key) ? key : "";
 }
 
 function rowLabel(row) {
