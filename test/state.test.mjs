@@ -1,0 +1,132 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import {
+	DAY_MS,
+	archiveRecord,
+	computeExpiresAt,
+	dueForDeletion,
+	emptyState,
+	isInsideSessionsRoot,
+	isSessionFile,
+	loadState,
+	markDeleted,
+	normalizeDays,
+	publicRecords,
+	purgeStaleRecords,
+	restoreRecord,
+	saveState,
+	setRetention,
+} from "../index.mjs";
+
+const ROOT = process.platform === "win32" ? "C:\\Users\\u\\.pi\\agent\\sessions" : "/home/u/.pi/agent/sessions";
+const FILE = process.platform === "win32" ? `${ROOT}\\c--x\\2026-01-01_a.jsonl` : `${ROOT}/c--x/2026-01-01_a.jsonl`;
+
+describe("路径与文件校验", () => {
+	it("只认会话目录内的 .jsonl", () => {
+		assert.equal(isSessionFile(FILE), true);
+		assert.equal(isSessionFile(FILE.replace(".jsonl", ".log")), false);
+		assert.equal(isInsideSessionsRoot(FILE, ROOT), true);
+		assert.equal(isInsideSessionsRoot(`${ROOT}-evil/x.jsonl`, ROOT), false);
+		assert.equal(isInsideSessionsRoot(FILE, ROOT.replace(/sessions$/, "sessions2")), false);
+	});
+
+	it("空路径一律拒绝", () => {
+		assert.equal(isInsideSessionsRoot("", ROOT), false);
+		assert.equal(isSessionFile(""), false);
+	});
+});
+
+describe("到期时间", () => {
+	it("0 表示永不删除", () => {
+		assert.equal(computeExpiresAt(0, 0), null);
+		assert.equal(computeExpiresAt(0, -3), null);
+		assert.equal(computeExpiresAt(0, 7), new Date(7 * DAY_MS).toISOString());
+	});
+
+	it("天数归一化有上限", () => {
+		assert.equal(normalizeDays(undefined, 7), 7);
+		assert.equal(normalizeDays("30", 7), 30);
+		assert.equal(normalizeDays(-1, 7), 7);
+		assert.equal(normalizeDays(9999, 7), 365);
+	});
+});
+
+describe("归档记录生命周期", () => {
+	it("同路径重复归档只更新到期时间", () => {
+		const state = emptyState();
+		const now = Date.now();
+		const first = archiveRecord(state, { path: FILE, title: "A", days: 7, now });
+		assert.equal(first.created, true);
+		const second = archiveRecord(state, { path: FILE, title: "A2", days: 30, now });
+		assert.equal(second.created, false);
+		assert.equal(state.records.length, 1);
+		assert.equal(second.record.days, 30);
+		assert.equal(second.record.title, "A2");
+	});
+
+	it("到期判定只看 archived", () => {
+		const state = emptyState();
+		const now = Date.now();
+		const { record } = archiveRecord(state, { path: FILE, title: "A", days: 1, now });
+		assert.equal(dueForDeletion(state, now).length, 0);
+		assert.equal(dueForDeletion(state, now + 2 * DAY_MS).length, 1);
+		restoreRecord(state, record.id, now);
+		assert.equal(dueForDeletion(state, now + 2 * DAY_MS).length, 0);
+	});
+
+	it("改期与恢复", () => {
+		const state = emptyState();
+		const { record } = archiveRecord(state, { path: FILE, title: "A", days: 7 });
+		assert.ok(setRetention(state, record.id, 0));
+		assert.equal(state.records[0].expiresAt, null);
+		assert.equal(setRetention(state, record.id, 7)?.days, 7);
+		restoreRecord(state, record.id);
+		assert.equal(publicRecords(state).length, 0);
+		assert.equal(setRetention(state, record.id, 30), null);
+	});
+
+	it("删除失败要留错误、不误标成已删除", () => {
+		const state = emptyState();
+		const { record } = archiveRecord(state, { path: FILE, title: "A", days: 7 });
+		markDeleted(state, record.id, { error: "拒绝" });
+		assert.equal(state.records[0].status, "archived");
+		assert.equal(state.records[0].lastError, "拒绝");
+		markDeleted(state, record.id);
+		assert.equal(state.records[0].status, "deleted");
+	});
+
+	it("陈旧记录会被清理，归档中的不清理", () => {
+		const state = emptyState();
+		const now = Date.now();
+		const archived = archiveRecord(state, { path: FILE, title: "A", days: 0, now }).record;
+		const gone = archiveRecord(state, { path: `${FILE}.b`, title: "B", days: 1, now }).record;
+		restoreRecord(state, gone.id, now);
+		assert.equal(purgeStaleRecords(state, now + 31 * DAY_MS), 1);
+		assert.deepEqual(
+			state.records.map((r) => r.id),
+			[archived.id],
+		);
+	});
+});
+
+describe("落盘", () => {
+	it("loadState 能吃坏文件，saveState 能原子写回", async () => {
+		const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+		const dir = mkdtempSync(join(tmpdir(), "sa-test-"));
+		try {
+			const file = join(dir, "state.json");
+			assert.equal(loadState(file).records.length, 0);
+			writeFileSync(file, "{ broken");
+			assert.equal(loadState(file).records.length, 0);
+			const state = emptyState();
+			archiveRecord(state, { path: FILE, title: "A", days: 7 });
+			saveState(file, state);
+			assert.equal(loadState(file).records.length, 1);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
