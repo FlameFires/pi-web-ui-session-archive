@@ -302,7 +302,7 @@ function closePanel() {
 
 /** 从会话路径提取项目文件夹（sessions/<编码后的 cwd>/<file>.jsonl）。 */
 function projectFolderOf(path) {
-	const match = String(path ?? "").match(/\/sessions\/([^/]+)\//i);
+	const match = normPath(path).match(/\/sessions\/([^/]+)\//);
 	return match ? match[1] : "";
 }
 
