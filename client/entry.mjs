@@ -208,10 +208,17 @@ function makeArchiveButton(row, path) {
 	return btn;
 }
 
+/**
+ * 宿主给每行写的 data-session-key 有两条来源：
+ *   历史的 .jsonl 路径（Iv(path)：反斜杠转斜杠 + 小写），或会话 id。
+ * 「另一处 / 运行的对话」这类行没有 .jsonl 的 title，只能靠这个 key 命中。
+ */
 function rowIsArchived(row, path) {
 	if (path && state.paths.has(normPath(path))) return true;
-	const key = (row.getAttribute("data-session-key") ?? "").trim().toLowerCase();
-	if (key && state.ids.has(key)) return true;
+	const key = normPath(row.getAttribute("data-session-key") ?? "");
+	if (!key) return false;
+	if (state.paths.has(key)) return true;
+	if (state.ids.has(key)) return true;
 	return false;
 }
 
