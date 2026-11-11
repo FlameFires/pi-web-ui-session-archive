@@ -8,6 +8,10 @@
  *
  * 目标文件：<pi-web-ui>/dist/server/agent-service.js
  * 升级 pi-web-ui 后必须重跑一次（升级会覆盖 dist）。
+ *
+ * 上游状态：修复已随 PR #868 合并进 main（commit 2f437b6a），但 v0.119.0 仍未包含。
+ *           — 0.119.x 期间本机需要这个补丁；
+ *           — 装上含该提交的版本后执行 --revert，不必再打。
  */
 import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";

@@ -1,6 +1,7 @@
 # 宿主补丁：置顶会话跨项目串台
 
-> **状态**：已在本机 `pi-web-ui` 的 `dist` 上打补丁并验证语法；上游未修。
+> **状态**：上游已修复 —— [PR #868](https://github.com/xing-shuyin/pi-web-ui/pull/868) 已合并进 main（`2f437b6a`），**但尚未发版**（截至 `v0.119.0` 仍未包含）。
+> 因此 **0.119.x 期间本机仍需保留 `dist` 补丁**；升级到含该提交的版本后再 `--revert`。
 > **性质**：这是 **宿主（pi-web-ui）的 bug**，与本仓库的 `session-archive` 插件无关。
 > **脚本**：`scripts/patch-host-pin.mjs`（幂等，可 `--check` / `--revert`）。
 
@@ -123,7 +124,12 @@ E:\tmp\pitest                      → 1 条（从 global 搬回；重复的大�
 2. Global 项目下不应再出现 `say ok`（🎉 这条就是被错钉的）
 3. 把某个属于项目 B 的会话在项目 A 视图下置顶 → 它**不应该**出现在 A 的列表里；切到项目 B 看，它在那里置顶
 
-## 上游 issue 草稿（给 xing-shuyin/pi-web-ui）
+## 上游记录（已由 PR #868 合并，无需再提 issue）
+
+> 下面是当时的 bug 报告素材，保留作历史记录。**不要据此再开 issue** —— 修复已在 main 上。
+> 维护者在 PR 里的结论：历史错钉记录**不做自动迁移**（避免在扫描/绑定路径写用户数据），
+> 需要清理时只在用户明确「取消置顶」时调 `ClientStateStore.cleanPinnedSession(path)`；
+> `universal` 底座无需改动；`dsh` 有同样写法，欢迎按同口径单独 PR。
 
 > **标题**：置顶会话按当前 cwd 记账，导致别的项目的会话被拉进当前项目
 >
