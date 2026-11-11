@@ -393,12 +393,11 @@ function projectFolderOf(path) {
 /** 用侧边栏 DOM 里能看到的绝对路径 title 反推编码文件夹的真实项目路径；推不出就回退文件夹名。 */
 function projectLabel(folder) {
 	if (!folder) return "(未知项目)";
-	const strip = (v) => String(v ?? "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
-	const target = strip(folder);
+	const target = pathSlug(folder);
 	for (const el of document.querySelectorAll("[title]")) {
 		const t = el.getAttribute("title") ?? "";
 		if (!/^[A-Za-z]:[\\/]/.test(t)) continue;
-		if (strip(t) === target) return t.replace(/\\/g, "/");
+		if (pathSlug(t) === target) return t.replace(/\\/g, "/");
 	}
 	const plain = folder.replace(/^-+|-+$/g, "");
 	const drive = plain.match(/^([A-Za-z])--(.*)$/);
@@ -514,30 +513,79 @@ function renderPanelItem(record) {
 }
 
 /** 恢复后在侧边栏找到那一行：滚动过去 + 闪烁边框；找不到/分区折叠就退回 toast 提示项目名。 */
-/**
- * 行被折叠的项目/分区藏起来时，把它展开：从行往上找到最近的
- * aria-expanded="false" 控件点一下（宿主折叠头都是这个约定），
- * 展开后等两帧让布局稳定再滚动。
- */
+/** 把路径压成宿主会话目录用的 slug（`E:\Mkmo\pi-web-ui` → `e-mkmo-pi-web-ui`）。 */
+function pathSlug(value) {
+	return String(value ?? "")
+		.replace(/[^A-Za-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.toLowerCase();
+}
+
+/** 按会话目录名找到对应项目的左栏行（宿主把项目路径写在 data-project-path 上）。 */
+function findProjectHeaderRow(folder) {
+	if (!folder) return null;
+	const target = pathSlug(folder);
+	if (!target) return null;
+	for (const el of document.querySelectorAll("[data-project-path]")) {
+		const value = el.getAttribute("data-project-path");
+		if (value && pathSlug(value) === target) return el.closest(".lp-row") ?? el.parentElement;
+	}
+	return null;
+}
+
+/** 项目行是否处于展开态：宿主用 `.lp-project-head-row.is-expanded` 表示。 */
+function projectRowExpanded(row) {
+	return row?.classList?.contains("is-expanded") !== false;
+}
+
+/** 等下一帧（无布局环境没有 rAF，退回 setTimeout）。 */
+function nextFrame() {
+	return new Promise((resolve) => {
+		const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : null;
+		if (raf) raf(() => resolve());
+		else window.setTimeout(resolve, 16);
+	});
+}
+
+async function nextFrames(count = 2) {
+	for (let i = 0; i < count; i += 1) await nextFrame();
+}
+
+/** 展开某个项目（点它的头部按钮），返回是否真的点过。 */
+async function expandProjectForFolder(folder) {
+	const row = findProjectHeaderRow(folder);
+	if (!row || projectRowExpanded(row)) return false;
+	const toggle = row.querySelector(".lp-project-header-item, button, [role='button']") ?? row;
+	toggle.click();
+	await nextFrames(2);
+	return true;
+}
+
+/** 向上找折叠容器（项目的 `is-expanded` 或缺省的 `aria-expanded="false"`）并点开。 */
 async function ensureRowVisible(row) {
 	if (row.getClientRects().length > 0) return true;
 	for (let depth = 0; depth < 8; depth += 1) {
 		let toggled = false;
 		let node = row.parentElement;
 		while (node && node !== document.body) {
-			const collapsed =
+			const collapsedProject =
+				node.classList?.contains("lp-project-head-row") && !projectRowExpanded(node)
+					? (node.querySelector(".lp-project-header-item") ?? node)
+					: null;
+			const collapsedAria =
 				node.getAttribute("aria-expanded") === "false"
 					? node
 					: node.querySelector?.(':scope > .lp-section-header button[aria-expanded="false"], :scope > [aria-expanded="false"]');
-			if (collapsed) {
-				collapsed.click();
+			const target = collapsedProject ?? collapsedAria;
+			if (target) {
+				target.click();
 				toggled = true;
 				break;
 			}
 			node = node.parentElement;
 		}
 		if (!toggled) break;
-		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		await nextFrames(2);
 		if (row.getClientRects().length > 0) {
 			await new Promise((resolve) => window.setTimeout(resolve, 80));
 			return true;
@@ -546,10 +594,31 @@ async function ensureRowVisible(row) {
 	return row.getClientRects().length > 0;
 }
 
+function findRestoredRow(ids) {
+	for (const row of document.querySelectorAll(".lp-row")) {
+		const path = rowSessionPath(row);
+		const key = normPath(row.getAttribute("data-session-key") ?? "");
+		const hit = (path && ids.includes(normPath(path))) || (key && ids.includes(key));
+		if (hit) return row;
+	}
+	return null;
+}
+
+/** 展开项目是异步渲染：轮询等这一行出现（最多 ~1.6s）。 */
+async function waitForRestoredRow(ids, timeoutMs = 1600) {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		const row = findRestoredRow(ids);
+		if (row) return row;
+		await new Promise((resolve) => window.setTimeout(resolve, 80));
+	}
+	return null;
+}
+
 let flashTimer = null;
 
 function flashRow(row) {
-	// 同一个行反复闪会叠动画，先把上一次的收干净
+	// 同一行反复闪会叠动画，先把上一次收干净
 	if (flashTimer) window.clearTimeout(flashTimer);
 	for (const el of document.querySelectorAll(".lp-row.sa-flash")) el.classList.remove("sa-flash");
 	void row.offsetWidth; // 强制重排，让 animation 能重放
@@ -565,22 +634,30 @@ async function flashRestoredRow(record) {
 	const folder = projectFolderOf(record.path);
 	const fallback = () =>
 		toast(`已恢复「${record.title || record.path}」· 所在项目：${projectLabel(folder)}（侧边栏没显示这一行，切到该项目即可见）`);
-	for (const row of document.querySelectorAll(".lp-row")) {
-		const path = rowSessionPath(row);
-		const key = normPath(row.getAttribute("data-session-key") ?? "");
-		const hit = (path && normPath(path) === ids[0]) || (key && ids.includes(key));
-		if (!hit) continue;
-		// 折叠着的项目先展开，否则闪了也看不见，用户以为没恢复
-		const visible = await ensureRowVisible(row);
-		if (!visible) {
-			fallback();
-			return;
-		}
-		row.scrollIntoView({ block: "center", behavior: "smooth" });
-		flashRow(row);
+
+	let row = findRestoredRow(ids);
+	if (!row) {
+		// 行还没渲染多半是被折叠的项目藏着（宿主折叠时不渲染子树）→ 先展开再等它出现
+		await expandProjectForFolder(folder);
+		row = await waitForRestoredRow(ids);
+	}
+	if (!row) {
+		fallback();
 		return;
 	}
-	fallback();
+	// 行在 DOM 里但不可见：可能是别的折叠层级（分区 / 列被收起）
+	const visible = await ensureRowVisible(row);
+	if (!visible) {
+		fallback();
+		return;
+	}
+	row = findRestoredRow(ids) ?? row;
+	try {
+		row.scrollIntoView?.({ block: "center", behavior: "smooth" });
+	} catch {
+		/* 无布局环境（测试 / 极端视图）下滚动失败不影响闪烁 */
+	}
+	flashRow(row);
 }
 
 function openPanel() {

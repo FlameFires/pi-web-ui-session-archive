@@ -578,3 +578,54 @@ describe("session-archive 浏览器侧 DOM", () => {
 		assert.equal(items().length, 3, "再点一次展开");
 	});
 });
+
+describe("恢复：折叠项目", () => {
+	it("行不在 DOM（项目折叠）→ 点开对应项目 → 等行出现 → 闪烁", async (t) => {
+		const folder = "--E--work-project-b--";
+		const file = sessionFile(folder, U2);
+		const html = `
+			<div class="lp-row lp-project-head-row" data-session-key="">
+				<button type="button" class="lp-project-header-item" data-project-path="E:\\work\\project-b">
+					<span class="lp-project-chevron"></span><span>project-b</span>
+				</button>
+			</div>
+			${SECTION_ACTIONS_HTML}`;
+		const env = await mountDom(t, {
+			html,
+			state: () => ({
+				records: [archivedRecord(file, { title: "被折叠的会话" })],
+				settings: { defaultDays: 30 },
+			}),
+			onRequest: (call) => (call.path === "/restore" ? { body: { ok: true, records: [] } } : null),
+		});
+
+		// 展开前的“宿主”行为：点击项目头 → 渲染出该项目的会话行
+		const headRow = env.document.querySelector(".lp-project-head-row");
+		const headerBtn = headRow.querySelector(".lp-project-header-item");
+		let expanded = false;
+		headerBtn.addEventListener("click", () => {
+			if (expanded) return;
+			expanded = true;
+			headRow.classList.add("is-expanded");
+			const holder = env.document.createElement("div");
+			holder.innerHTML = rowHtml({ title: file, text: "被折叠的会话", del: true });
+			const row = holder.firstElementChild;
+			// jsdom 没有布局：让「可见性」检查通过
+			row.getClientRects = () => [{ width: 100, height: 20 }];
+			headRow.after(row);
+		});
+
+		await settle();
+		await openPanelFromSlot(env);
+		const restoreBtn = env.document.querySelector('.sa-item [data-role="restore"]');
+		assert.ok(restoreBtn, "面板里应有恢复按钮");
+		restoreBtn.click();
+		// 恢复流程里有真实的帧/轮询等待（16ms 帧 + 80ms 轮询），这里给到真实时间
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		await settle();
+
+		assert.equal(expanded, true, "恢复后应自动展开对应项目");
+		const flashed = env.document.querySelector(".lp-row.sa-flash");
+		assert.ok(flashed, "恢复的那一行应带闪烁标记");
+	});
+});
