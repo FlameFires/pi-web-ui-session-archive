@@ -221,7 +221,7 @@ function makeArchiveButton(row, path) {
 	btn.addEventListener("click", (event) => {
 		event.preventDefault();
 		event.stopPropagation();
-		void archiveNow(path, rowLabel(row));
+		void archiveNow(path, rowLabel(row), rowIsActive(row));
 	});
 	return btn;
 }
@@ -240,12 +240,12 @@ function rowIsArchived(row, path) {
 	return false;
 }
 
-async function archiveNow(path, title) {
+async function archiveNow(path, title, current) {
 	const days = Number.isFinite(state.defaultDays) ? state.defaultDays : 30;
 	try {
 		const result = await request("/archive", {
 			method: "POST",
-			body: JSON.stringify({ path, title, days }),
+			body: JSON.stringify({ path, title, days, current: current === true }),
 		});
 		if (Array.isArray(result.records)) applyRecords(result.records);
 		else await refresh();

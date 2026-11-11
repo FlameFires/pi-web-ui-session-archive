@@ -107,12 +107,16 @@ export function archiveRecord(state, { path, title, days, extension, now = Date.
 	const key = normalizePathKey(path);
 	const label = String(title ?? "").trim().slice(0, 200);
 	const expiresAt = computeExpiresAt(now, days);
-	const existing = state.records.find((r) => r.status === "archived" && normalizePathKey(r.path) === key);
+	const existing = state.records.find(
+		(r) => r.status !== "deleted" && normalizePathKey(r.path) === key,
+	);
 	if (existing) {
+		existing.status = "archived";
 		existing.title = label || existing.title;
 		existing.expiresAt = expiresAt;
 		existing.days = normalizeDays(days, DEFAULT_DAYS);
 		existing.updatedAt = new Date(now).toISOString();
+		existing.lastError = null;
 		return { record: existing, created: false };
 	}
 	const record = {
@@ -344,9 +348,10 @@ export default {
 		 * “当前对话”的侧边栏行文本是「当前 + 时间」，不是会话名。
 		 * 标题可疑时读 .jsonl 文件头里的真实名字（纯只读，不申请授权）。
 		 */
-		const resolveTitle = (absPath, fallback) => {
+		const resolveTitle = (absPath, fallback, current) => {
 			const label = String(fallback ?? "").trim();
-			if (!/^当前/.test(label)) return label;
+			const suspicious = current === true || /^当前/.test(label) || /^\d{1,2}:\d{2}/.test(label);
+			if (!suspicious) return label;
 			try {
 				const text = existsSync(absPath) ? readFileSync(absPath, "utf8") : "";
 				let lastName = null;
@@ -402,7 +407,7 @@ export default {
 			// 归档本身只写记录 + 隐藏行，不碰文件、不申请任何目录授权。
 			const { record, created } = archiveRecord(state, {
 				path: rawPath,
-				title: resolveTitle(rawPath, body.title),
+				title: resolveTitle(rawPath, body.title, body.current === true),
 				extension: body.extension,
 				days,
 			});
