@@ -32,6 +32,7 @@ const state = {
 	defaultDays: 7,
 	showActiveRowButton: false,
 	panelOpen: false,
+	collapsedGroups: new Set(),
 	busy: false,
 };
 
@@ -152,14 +153,20 @@ function ensureStyles() {
 .sa-panel{position:fixed;right:12px;top:56px;width:264px;max-height:min(560px,calc(100vh - 80px));background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.45);z-index:9400;display:flex;flex-direction:column;font:12.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
 .sa-panel header{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border,#3a3d45)}
 .sa-panel header h3{margin:0;font-size:13px;font-weight:600;flex:0 0 auto}
-.sa-search{flex:1;min-width:0;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:6px;padding:3px 8px;font-size:12px;outline:none}
-.sa-search:focus{border-color:var(--accent,#5b8cff)}
+.sa-search{flex:1;min-width:0;background:transparent;color:inherit;border:1px solid var(--border,#3a3d45);border-radius:6px;padding:3px 8px;font-size:12px;outline:none;transition:border-color .12s,box-shadow .12s}
+.sa-search::placeholder{color:inherit;opacity:.42}
+.sa-search:hover{border-color:color-mix(in srgb,var(--accent,#5b8cff) 45%,var(--border,#3a3d45))}
+.sa-search:focus{border-color:var(--accent,#5b8cff);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#5b8cff) 22%,transparent)}
 .sa-panel .sa-count{opacity:.55;font-size:11px;flex:0 0 auto}
 .sa-list{flex:1;overflow:auto;padding:4px 6px 8px}
 .sa-group{margin-top:6px}
 .sa-group+.sa-group{border-top:1px solid var(--border,#3a3d45)}
-.sa-group-h{display:flex;align-items:center;gap:6px;padding:6px 4px 2px;opacity:.7;font-size:11px;font-weight:600}
-.sa-group-h span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-group-h{display:flex;align-items:center;gap:5px;padding:6px 4px 2px;opacity:.72;font-size:11px;font-weight:600;cursor:pointer;user-select:none;border-radius:6px}
+.sa-group-h:hover{opacity:1;background:color-mix(in srgb,var(--accent,#5b8cff) 8%,transparent)}
+.sa-group-h .sa-caret{flex:0 0 auto;width:10px;height:10px;display:inline-flex;align-items:center;justify-content:center;transition:transform .12s;opacity:.8}
+.sa-group-h[data-open="0"] .sa-caret{transform:rotate(-90deg)}
+.sa-group-h .sa-group-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-group-h .sa-group-count{flex:0 0 auto;margin-left:auto;opacity:.8;font-variant-numeric:tabular-nums}
 .sa-item{border-radius:8px;padding:6px 6px 6px 8px;margin:2px 0}
 .sa-item:hover{background:color-mix(in srgb,var(--accent,#5b8cff) 8%,transparent)}
 .sa-item-title{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -177,7 +184,10 @@ function ensureStyles() {
 .lp-row.sa-flash{animation:saFlash .9s ease-in-out 3;border-radius:8px}
 .sa-toast{position:fixed;right:16px;bottom:16px;z-index:9600;background:var(--bg-elev,#1f2127);color:var(--text,#e8e8ea);border:1px solid var(--border,#3a3d45);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.45);padding:10px 12px;display:flex;align-items:center;gap:10px;font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:min(420px,calc(100vw - 32px))}
 .sa-toast button{border:0;background:transparent;color:var(--accent,#5b8cff);cursor:pointer;font-size:13px}
-.sa-close{border:0;background:transparent;color:inherit;cursor:pointer;opacity:.7;font-size:16px;line-height:1}
+.sa-close{border:0;background:transparent;color:inherit;cursor:pointer;opacity:.65;font-size:15px;line-height:1;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;transition:background .12s,color .12s,transform .08s}
+.sa-close:hover{opacity:1;background:color-mix(in srgb,var(--text,#e8e8ea) 14%,transparent)}
+.sa-close:active{transform:scale(.9)}
+.sa-close:focus-visible{outline:1px solid var(--accent,#5b8cff);outline-offset:1px}
 `;
 	document.head.appendChild(style);
 }
@@ -368,10 +378,18 @@ function renderPanel() {
 		const head = document.createElement("div");
 		head.className = "sa-group-h";
 		const label = projectLabel(folder);
-		head.innerHTML = `<span title="${escapeAttr(label)}">${escapeHtml(label.split(/[\\/]/).pop() || label)}</span><span>${items.length} 条</span>`;
+		const open = !state.collapsedGroups.has(folder);
+		head.dataset.open = open ? "1" : "0";
+		head.title = label;
+		head.innerHTML = `<span class="sa-caret">▾</span><span class="sa-group-name">${escapeHtml(label.split(/[\\/]/).pop() || label)}</span><span class="sa-group-count">${items.length} 条</span>`;
+		head.addEventListener("click", () => {
+			if (state.collapsedGroups.has(folder)) state.collapsedGroups.delete(folder);
+			else state.collapsedGroups.add(folder);
+			renderPanel();
+		});
 		group.appendChild(head);
-		for (const record of items) {
-			group.appendChild(renderPanelItem(record));
+		if (open) {
+			for (const record of items) group.appendChild(renderPanelItem(record));
 		}
 		list.appendChild(group);
 	}
